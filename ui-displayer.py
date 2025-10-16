@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QSplashScreen, QCheckBox
 )
 from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QEvent, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QLinearGradient, QRadialGradient, QConicalGradient, QPixmap
+from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient, QConicalGradient, QPixmap
 import math
 import random
 import json
@@ -196,6 +196,305 @@ def clear_alarm_from_history(gauge_name, alarm_type):
         
     except Exception as e:
         print(f"Error clearing alarm from history: {e}")
+
+
+# ============== Industry-Specific Configuration Management ==============
+
+def get_industry_default_configurations():
+    """Get default gauge visibility configurations for different industries"""
+    return {
+        "marine": {
+            "name": "Marine Engine",
+            "description": "Configuration optimized for marine diesel engines",
+            "pressure_gauges": {
+                0: True,   # Fuel Oil Pressure
+                1: True,   # Lube Oil Pressure
+                2: True,   # Charge Air Pressure
+                3: True,   # Cooling Water Pressure
+                4: True,   # Hydraulic Oil Pressure
+                5: True,   # Starting Air Pressure
+                6: False,  # Auxiliary Pressure 1
+                7: False   # Auxiliary Pressure 2
+            },
+            "temperature_gauges": {
+                0: True,   # Charge Air Temp
+                1: True,   # Lube Oil Inlet Temp
+                2: True,   # Fuel Oil Temp
+                3: True,   # HT Water Temp Inlet
+                4: True,   # HT Water Temp Outlet
+                5: True,   # LT Water Temp Inlet
+                6: True,   # LT Water Temp Outlet
+                7: True,   # Alternator Bearing Temp A
+                8: True,   # Alternator Bearing Temp B
+                9: True,   # Exhaust Gas Temp 1
+                10: True,  # Exhaust Gas Temp 2
+                11: True,  # Exhaust Gas Temp 3
+                12: False, # Auxiliary Temp 1
+                13: False, # Auxiliary Temp 2
+                14: False, # Auxiliary Temp 3
+                15: False  # Auxiliary Temp 4
+            }
+        },
+        "power_generation": {
+            "name": "Power Generation",
+            "description": "Configuration for stationary power generation engines",
+            "pressure_gauges": {
+                0: True,   # Fuel Oil Pressure
+                1: True,   # Lube Oil Pressure
+                2: True,   # Charge Air Pressure
+                3: True,   # Cooling Water Pressure
+                4: False,  # Hydraulic Oil Pressure
+                5: True,   # Starting Air Pressure
+                6: True,   # Generator Cooling Pressure
+                7: True    # Auxiliary System Pressure
+            },
+            "temperature_gauges": {
+                0: True,   # Charge Air Temp
+                1: True,   # Lube Oil Inlet Temp
+                2: True,   # Fuel Oil Temp
+                3: True,   # HT Water Temp Inlet
+                4: True,   # HT Water Temp Outlet
+                5: True,   # LT Water Temp Inlet
+                6: True,   # LT Water Temp Outlet
+                7: True,   # Alternator Bearing Temp A
+                8: True,   # Alternator Bearing Temp B
+                9: True,   # Exhaust Gas Temp 1
+                10: True,  # Exhaust Gas Temp 2
+                11: True,  # Exhaust Gas Temp 3
+                12: True,  # Generator Winding Temp
+                13: True,  # Transformer Oil Temp
+                14: False, # Auxiliary Temp 1
+                15: False  # Auxiliary Temp 2
+            }
+        },
+        "industrial": {
+            "name": "Industrial Application",
+            "description": "General industrial engine configuration",
+            "pressure_gauges": {
+                0: True,   # Fuel Oil Pressure
+                1: True,   # Lube Oil Pressure
+                2: True,   # Charge Air Pressure
+                3: True,   # Cooling Water Pressure
+                4: True,   # Hydraulic Oil Pressure
+                5: False,  # Starting Air Pressure
+                6: True,   # Process Pressure 1
+                7: True    # Process Pressure 2
+            },
+            "temperature_gauges": {
+                0: True,   # Charge Air Temp
+                1: True,   # Lube Oil Inlet Temp
+                2: True,   # Fuel Oil Temp
+                3: True,   # HT Water Temp Inlet
+                4: True,   # HT Water Temp Outlet
+                5: True,   # LT Water Temp Inlet
+                6: True,   # LT Water Temp Outlet
+                7: False,  # Alternator Bearing Temp A
+                8: False,  # Alternator Bearing Temp B
+                9: True,   # Process Temp 1
+                10: True,  # Process Temp 2
+                11: True,  # Process Temp 3
+                12: True,  # Process Temp 4
+                13: True,  # Ambient Temp
+                14: False, # Auxiliary Temp 1
+                15: False  # Auxiliary Temp 2
+            }
+        },
+        "custom": {
+            "name": "Custom Configuration",
+            "description": "User-defined configuration - all gauges visible by default",
+            "pressure_gauges": {i: True for i in range(8)},
+            "temperature_gauges": {i: True for i in range(16)}
+        }
+    }
+
+def get_current_industry_profile():
+    """Get the current industry profile from configuration"""
+    try:
+        config = load_encrypted_config()
+        if config and "IndustryProfile" in config:
+            return config["IndustryProfile"]
+        return "custom"  # Default to custom if not set
+    except Exception as e:
+        print(f"Error loading industry profile: {e}")
+        return "custom"
+
+def set_industry_profile(industry_type):
+    """Set the industry profile and apply default gauge visibility settings"""
+    try:
+        industry_configs = get_industry_default_configurations()
+        if industry_type not in industry_configs:
+            print(f"Unknown industry type: {industry_type}")
+            return False
+        
+        config = load_encrypted_config()
+        if config is None:
+            config = {}
+        
+        # Set industry profile
+        config["IndustryProfile"] = industry_type
+        
+        # Apply default gauge visibility settings for this industry
+        industry_config = industry_configs[industry_type]
+        config["PressureGaugeVisibility"] = industry_config["pressure_gauges"].copy()
+        config["TemperatureGaugeVisibility"] = industry_config["temperature_gauges"].copy()
+        
+        # Add metadata
+        config["IndustryProfileMetadata"] = {
+            "name": industry_config["name"],
+            "description": industry_config["description"],
+            "applied_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "1.0"
+        }
+        
+        # Save configuration
+        if save_encrypted_config(config):
+            print(f"✅ Industry profile '{industry_config['name']}' applied successfully")
+            return True
+        else:
+            print(f"❌ Failed to save industry profile configuration")
+            return False
+            
+    except Exception as e:
+        print(f"Error setting industry profile: {e}")
+        return False
+
+def validate_gauge_visibility_config(config_data):
+    """Validate gauge visibility configuration data"""
+    try:
+        if not isinstance(config_data, dict):
+            return False, "Configuration must be a dictionary"
+        
+        # Validate pressure gauge visibility
+        if "PressureGaugeVisibility" in config_data:
+            pressure_config = config_data["PressureGaugeVisibility"]
+            if not isinstance(pressure_config, dict):
+                return False, "PressureGaugeVisibility must be a dictionary"
+            
+            for gauge_id, visible in pressure_config.items():
+                try:
+                    gauge_num = int(gauge_id)
+                    if gauge_num < 0 or gauge_num >= 8:
+                        return False, f"Invalid pressure gauge ID: {gauge_id} (must be 0-7)"
+                    if not isinstance(visible, bool):
+                        return False, f"Pressure gauge {gauge_id} visibility must be boolean"
+                except ValueError:
+                    return False, f"Invalid pressure gauge ID format: {gauge_id}"
+        
+        # Validate temperature gauge visibility
+        if "TemperatureGaugeVisibility" in config_data:
+            temp_config = config_data["TemperatureGaugeVisibility"]
+            if not isinstance(temp_config, dict):
+                return False, "TemperatureGaugeVisibility must be a dictionary"
+            
+            for gauge_id, visible in temp_config.items():
+                try:
+                    gauge_num = int(gauge_id)
+                    if gauge_num < 0 or gauge_num >= 16:
+                        return False, f"Invalid temperature gauge ID: {gauge_id} (must be 0-15)"
+                    if not isinstance(visible, bool):
+                        return False, f"Temperature gauge {gauge_id} visibility must be boolean"
+                except ValueError:
+                    return False, f"Invalid temperature gauge ID format: {gauge_id}"
+        
+        # Validate industry profile
+        if "IndustryProfile" in config_data:
+            industry_profile = config_data["IndustryProfile"]
+            valid_profiles = list(get_industry_default_configurations().keys())
+            if industry_profile not in valid_profiles:
+                return False, f"Invalid industry profile: {industry_profile} (must be one of {valid_profiles})"
+        
+        return True, "Configuration is valid"
+        
+    except Exception as e:
+        return False, f"Validation error: {e}"
+
+def export_gauge_visibility_config(file_path=None):
+    """Export current gauge visibility configuration to a JSON file"""
+    try:
+        config = load_encrypted_config()
+        if config is None:
+            return False, "No configuration found to export"
+        
+        # Extract only gauge visibility related settings
+        export_data = {
+            "IndustryProfile": config.get("IndustryProfile", "custom"),
+            "IndustryProfileMetadata": config.get("IndustryProfileMetadata", {}),
+            "PressureGaugeVisibility": config.get("PressureGaugeVisibility", {i: True for i in range(8)}),
+            "TemperatureGaugeVisibility": config.get("TemperatureGaugeVisibility", {i: True for i in range(16)}),
+            "ExportMetadata": {
+                "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "version": "1.0",
+                "application": "IntelliScada Engine Monitor"
+            }
+        }
+        
+        # Validate before export
+        is_valid, validation_message = validate_gauge_visibility_config(export_data)
+        if not is_valid:
+            return False, f"Configuration validation failed: {validation_message}"
+        
+        # Set default file path if not provided
+        if file_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = f"gauge_visibility_config_{timestamp}.json"
+        
+        # Export to JSON file
+        with open(file_path, 'w') as f:
+            json.dump(export_data, f, indent=4)
+        
+        return True, f"Configuration exported successfully to {file_path}"
+        
+    except Exception as e:
+        return False, f"Export failed: {e}"
+
+def import_gauge_visibility_config(file_path):
+    """Import gauge visibility configuration from a JSON file"""
+    try:
+        if not os.path.exists(file_path):
+            return False, f"Configuration file not found: {file_path}"
+        
+        # Load configuration from file
+        with open(file_path, 'r') as f:
+            import_data = json.load(f)
+        
+        # Validate imported configuration
+        is_valid, validation_message = validate_gauge_visibility_config(import_data)
+        if not is_valid:
+            return False, f"Invalid configuration file: {validation_message}"
+        
+        # Load current configuration
+        config = load_encrypted_config()
+        if config is None:
+            config = {}
+        
+        # Update gauge visibility settings
+        if "PressureGaugeVisibility" in import_data:
+            config["PressureGaugeVisibility"] = import_data["PressureGaugeVisibility"]
+        
+        if "TemperatureGaugeVisibility" in import_data:
+            config["TemperatureGaugeVisibility"] = import_data["TemperatureGaugeVisibility"]
+        
+        if "IndustryProfile" in import_data:
+            config["IndustryProfile"] = import_data["IndustryProfile"]
+        
+        if "IndustryProfileMetadata" in import_data:
+            config["IndustryProfileMetadata"] = import_data["IndustryProfileMetadata"]
+        
+        # Add import metadata
+        config["ImportMetadata"] = {
+            "import_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "source_file": os.path.basename(file_path),
+            "imported_by": "Configuration Import Tool"
+        }
+        
+        # Save updated configuration
+        if save_encrypted_config(config):
+            return True, "Configuration imported successfully"
+        else:
+            return False, "Failed to save imported configuration"
+            
+    except Exception as e:
+        return False, f"Import failed: {e}"
 
 
 # ---------------- Custom Splash Screen ----------------
@@ -4200,6 +4499,52 @@ class MainBearingTab(QWidget):
         super().mouseMoveEvent(event)
 
 
+# ---------------- Gauge Placeholder Widget ----------------
+class GaugePlaceholder(QWidget):
+    """Placeholder widget to maintain layout when gauges are hidden"""
+    def __init__(self, label="Hidden Gauge"):
+        super().__init__()
+        self.label = label
+        self.setMinimumSize(220, 250)
+        self.setStyleSheet("background: transparent;")
+        
+    def paintEvent(self, event):
+        """Custom paint event to draw a circular gauge placeholder"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Get the center and radius for the circular gauge
+        rect = self.rect()
+        center_x = rect.width() // 2
+        center_y = rect.height() // 2 - 10  # Slightly offset up like real gauges
+        radius = min(rect.width(), rect.height()) // 3
+        
+        # Draw outer circle (gauge border) - dimmed
+        painter.setPen(QPen(QColor(100, 120, 150, 80), 3))
+        painter.setBrush(QBrush(QColor(40, 50, 65, 30)))
+        painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
+        
+        # Draw inner circle (gauge face) - very dimmed
+        inner_radius = radius - 15
+        painter.setPen(QPen(QColor(80, 100, 130, 60), 2))
+        painter.setBrush(QBrush(QColor(25, 35, 50, 20)))
+        painter.drawEllipse(center_x - inner_radius, center_y - inner_radius, inner_radius * 2, inner_radius * 2)
+        
+        # Draw tick marks around the circle - very faint
+        painter.setPen(QPen(QColor(120, 140, 170, 40), 1))
+        for i in range(12):  # 12 tick marks like a clock
+            angle = i * 30 * 3.14159 / 180  # Convert to radians
+            start_x = center_x + (inner_radius - 10) * math.cos(angle - 3.14159/2)
+            start_y = center_y + (inner_radius - 10) * math.sin(angle - 3.14159/2)
+            end_x = center_x + (inner_radius - 5) * math.cos(angle - 3.14159/2)
+            end_y = center_y + (inner_radius - 5) * math.sin(angle - 3.14159/2)
+            painter.drawLine(int(start_x), int(start_y), int(end_x), int(end_y))
+        
+        # Draw center dot - dimmed
+        painter.setPen(QPen(QColor(100, 120, 150, 60), 2))
+        painter.setBrush(QBrush(QColor(80, 100, 130, 40)))
+        painter.drawEllipse(center_x - 4, center_y - 4, 8, 8)
+
 # ---------------- Circular Pressure Gauge Widget ----------------
 class CircularPressureGauge(QWidget):
     def __init__(self, label, max_value=10, reverse_colors=False, gauge_index=0, parent_window=None):
@@ -5509,6 +5854,270 @@ class MainBearingBarConfigDialog(QDialog):
         }
 
 
+# ---------------- Gauge Visibility Settings Dialog ----------------
+class GaugeVisibilityDialog(QDialog):
+    """Dialog for configuring gauge visibility settings"""
+    
+    def __init__(self, gauge_labels, current_visibility, parent=None):
+        super().__init__(parent)
+        self.gauge_labels = gauge_labels
+        self.current_visibility = current_visibility.copy()
+        self.checkboxes = {}
+        
+        self.setWindowTitle("Gauge Visibility Settings")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+        self.setMaximumWidth(500)
+        
+        # Ensure dialog appears on top
+        self.setWindowFlags(Qt.Dialog | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint)
+        self.raise_()
+        self.activateWindow()
+        
+        # Main layout
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(25, 25, 25, 25)
+        
+        # Header with icon and title
+        header_layout = QHBoxLayout()
+        
+        # Settings icon
+        icon_label = QLabel("⚙️")
+        icon_label.setStyleSheet("font-size: 32px; background: transparent;")
+        header_layout.addWidget(icon_label)
+        
+        # Title text
+        title_label = QLabel("Gauge Visibility Settings")
+        title_label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: rgb(0, 191, 255);
+            margin-left: 10px;
+            background: transparent;
+        """)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        
+        layout.addLayout(header_layout)
+        
+        # Description
+        desc_label = QLabel("Select which gauges to display. Unchecked gauges will be hidden from view.")
+        desc_label.setStyleSheet("""
+            font-size: 13px;
+            color: rgb(200, 200, 200);
+            line-height: 1.4;
+            background: transparent;
+            margin-bottom: 10px;
+        """)
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+        
+        # Scroll area for checkboxes
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMaximumHeight(300)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 8px;
+            }
+            QScrollBar:vertical {
+                background: rgba(255, 255, 255, 0.1);
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(0, 150, 255, 0.7);
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(0, 180, 255, 0.8);
+            }
+        """)
+        
+        # Container for checkboxes
+        checkbox_container = QWidget()
+        checkbox_layout = QVBoxLayout(checkbox_container)
+        checkbox_layout.setSpacing(8)
+        checkbox_layout.setContentsMargins(15, 15, 15, 15)
+        
+        # Create checkboxes for each gauge
+        for i, label in enumerate(self.gauge_labels):
+            checkbox = QCheckBox(f"Gauge {i+1}: {label}")
+            checkbox.setChecked(self.current_visibility.get(i, True))
+            checkbox.setStyleSheet("""
+                QCheckBox {
+                    color: rgb(230, 237, 243);
+                    font-size: 12px;
+                    font-weight: 500;
+                    spacing: 8px;
+                    background: transparent;
+                    padding: 5px;
+                }
+                QCheckBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid rgb(88, 166, 255);
+                    border-radius: 3px;
+                    background: rgba(255, 255, 255, 0.05);
+                }
+                QCheckBox::indicator:checked {
+                    background: rgb(88, 166, 255);
+                    border: 2px solid rgb(88, 166, 255);
+                }
+                QCheckBox::indicator:checked:hover {
+                    background: rgb(121, 192, 255);
+                }
+                QCheckBox::indicator:hover {
+                    border: 2px solid rgb(121, 192, 255);
+                    background: rgba(121, 192, 255, 0.1);
+                }
+            """)
+            self.checkboxes[i] = checkbox
+            checkbox_layout.addWidget(checkbox)
+        
+        scroll_area.setWidget(checkbox_container)
+        layout.addWidget(scroll_area)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        
+        # Select All button
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.setMinimumHeight(35)
+        select_all_btn.setCursor(Qt.PointingHandCursor)
+        select_all_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(0, 150, 200, 0.6);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgba(0, 180, 230, 0.7);
+            }
+            QPushButton:pressed {
+                background: rgba(0, 120, 170, 0.5);
+            }
+        """)
+        select_all_btn.clicked.connect(self.select_all)
+        
+        # Deselect All button
+        deselect_all_btn = QPushButton("Deselect All")
+        deselect_all_btn.setMinimumHeight(35)
+        deselect_all_btn.setCursor(Qt.PointingHandCursor)
+        deselect_all_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(200, 100, 0, 0.6);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgba(230, 120, 0, 0.7);
+            }
+            QPushButton:pressed {
+                background: rgba(170, 80, 0, 0.5);
+            }
+        """)
+        deselect_all_btn.clicked.connect(self.deselect_all)
+        
+        button_layout.addWidget(select_all_btn)
+        button_layout.addWidget(deselect_all_btn)
+        button_layout.addStretch()
+        
+        # OK and Cancel buttons
+        ok_btn = QPushButton("Apply")
+        ok_btn.setMinimumWidth(80)
+        ok_btn.setMinimumHeight(35)
+        ok_btn.setCursor(Qt.PointingHandCursor)
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(0, 200, 100, 0.8);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgba(0, 230, 120, 0.9);
+            }
+            QPushButton:pressed {
+                background: rgba(0, 170, 80, 0.7);
+            }
+        """)
+        ok_btn.clicked.connect(self.accept)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumWidth(80)
+        cancel_btn.setMinimumHeight(35)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(150, 150, 150, 0.6);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgba(180, 180, 180, 0.7);
+            }
+            QPushButton:pressed {
+                background: rgba(120, 120, 120, 0.5);
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(ok_btn)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+        
+        # Set dialog style
+        self.setStyleSheet("""
+            QDialog {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(25, 35, 50), stop:1 rgb(15, 25, 40));
+                border: none;
+                border-radius: 12px;
+            }
+        """)
+    
+    def select_all(self):
+        """Select all checkboxes"""
+        for checkbox in self.checkboxes.values():
+            checkbox.setChecked(True)
+    
+    def deselect_all(self):
+        """Deselect all checkboxes"""
+        for checkbox in self.checkboxes.values():
+            checkbox.setChecked(False)
+    
+    def get_visibility_settings(self):
+        """Get the current visibility settings"""
+        visibility = {}
+        for i, checkbox in self.checkboxes.items():
+            visibility[i] = checkbox.isChecked()
+        return visibility
+
+
 # ---------------- Engine Pressures Tab ----------------
 class EnginePressuresTab(QWidget):
     def __init__(self, parent=None):
@@ -5517,17 +6126,57 @@ class EnginePressuresTab(QWidget):
         self.setMinimumSize(800, 450)
         self.setStyleSheet(CYLINDER_HEAD_BG_STYLE)
         
+        # Initialize gauge visibility settings (all visible by default)
+        self.gauge_visibility = {i: True for i in range(8)}
+        
+        # Store both gauges and placeholders
+        self.placeholders = []
+        
         # Create layout
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(20, 30, 20, 20)
         main_layout.setSpacing(15)
+        
+        # Header layout with title and settings icon
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
         
         # Title
         self.title = QLabel("ENGINE PRESSURES")
         self.title.setFont(QFont("Inter", 18, QFont.Bold))
         self.title.setStyleSheet("color: rgb(255, 255, 255);")
         self.title.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(self.title)
+        header_layout.addWidget(self.title, 1)
+        
+        # Settings icon button
+        self.settings_btn = QPushButton("⚙️")
+        self.settings_btn.setFixedSize(40, 40)
+        self.settings_btn.setCursor(Qt.PointingHandCursor)
+        self.settings_btn.setToolTip("Configure gauge visibility")
+        self.settings_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(88, 166, 255, 0.2);
+                color: rgb(88, 166, 255);
+                border: 2px solid rgba(88, 166, 255, 0.3);
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(88, 166, 255, 0.3);
+                border: 2px solid rgba(88, 166, 255, 0.5);
+                color: rgb(121, 192, 255);
+            }
+            QPushButton:pressed {
+                background: rgba(88, 166, 255, 0.4);
+                border: 2px solid rgba(88, 166, 255, 0.6);
+            }
+        """)
+        self.settings_btn.clicked.connect(self.show_settings_dialog)
+        self.settings_btn.setVisible(False)  # Hidden by default, shown only in developer mode
+        header_layout.addWidget(self.settings_btn)
+        
+        main_layout.addLayout(header_layout)
         
         # Create gauge grid (2 rows x 4 columns)
         grid_layout = QVBoxLayout()
@@ -5545,7 +6194,7 @@ class EnginePressuresTab(QWidget):
             {"label": "Crank Case Pressure", "max_value": 5, "reverse_colors": False}  # Changed to 5 bar
         ]
         
-        # Create gauges
+        # Create gauges and placeholders
         self.gauges = []
         
         # First row (4 gauges)
@@ -5554,7 +6203,9 @@ class EnginePressuresTab(QWidget):
         for i in range(4):
             config = gauge_config[i]
             gauge = CircularPressureGauge(config["label"], max_value=config["max_value"], reverse_colors=config["reverse_colors"], gauge_index=i, parent_window=self.parent_window)
+            placeholder = GaugePlaceholder(config["label"])
             self.gauges.append(gauge)
+            self.placeholders.append(placeholder)
             self.row1_layout.addWidget(gauge, 1)  # Add stretch factor
         grid_layout.addLayout(self.row1_layout)
         
@@ -5564,13 +6215,18 @@ class EnginePressuresTab(QWidget):
         for i in range(4, 8):
             config = gauge_config[i]
             gauge = CircularPressureGauge(config["label"], max_value=config["max_value"], reverse_colors=config["reverse_colors"], gauge_index=i, parent_window=self.parent_window)
+            placeholder = GaugePlaceholder(config["label"])
             self.gauges.append(gauge)
+            self.placeholders.append(placeholder)
             self.row2_layout.addWidget(gauge, 1)  # Add stretch factor
         grid_layout.addLayout(self.row2_layout)
         
         main_layout.addLayout(grid_layout, 1)  # Add stretch factor to grid
         
         self.setLayout(main_layout)
+        
+        # Load gauge visibility settings
+        self.load_visibility_settings()
     
     def resizeEvent(self, event):
         """Handle resize events to update font sizes"""
@@ -5670,6 +6326,165 @@ class EnginePressuresTab(QWidget):
                 new_label = gauge_labels[gauge_key]
                 gauge.label = new_label
                 gauge.update()  # Trigger repaint to show new label
+    
+    def show_settings_dialog(self):
+        """Show the gauge visibility settings dialog"""
+        # Get gauge labels
+        gauge_labels = [
+            "Fuel Oil Pressure Inlet",
+            "Lube Oil Pressure Inlet", 
+            "LT Water Pressure",
+            "HT Water Pressure",
+            "Charge Air Pressure",
+            "Starting Air Pressure",
+            "Lube Oil Differential Pressure",
+            "Crank Case Pressure"
+        ]
+        
+        # Create and show dialog
+        dialog = GaugeVisibilityDialog(gauge_labels, self.gauge_visibility, self)
+        if dialog.exec_() == QDialog.Accepted:
+            # Update visibility settings
+            new_visibility = dialog.get_visibility_settings()
+            self.gauge_visibility = new_visibility
+            self.update_gauge_visibility()
+            self.save_visibility_settings()
+    
+    def update_gauge_visibility(self):
+        """Update the visibility of gauges based on current settings using placeholders"""
+        # First row (indices 0-3)
+        for i in range(4):
+            is_visible = self.gauge_visibility.get(i, True)
+            gauge = self.gauges[i]
+            placeholder = self.placeholders[i]
+            
+            if is_visible:
+                # Show gauge, hide placeholder
+                if placeholder in [self.row1_layout.itemAt(j).widget() for j in range(self.row1_layout.count())]:
+                    self.row1_layout.removeWidget(placeholder)
+                    placeholder.hide()
+                if gauge not in [self.row1_layout.itemAt(j).widget() for j in range(self.row1_layout.count())]:
+                    self.row1_layout.insertWidget(i, gauge, 1)
+                    gauge.show()
+            else:
+                # Show placeholder, hide gauge
+                if gauge in [self.row1_layout.itemAt(j).widget() for j in range(self.row1_layout.count())]:
+                    self.row1_layout.removeWidget(gauge)
+                    gauge.hide()
+                if placeholder not in [self.row1_layout.itemAt(j).widget() for j in range(self.row1_layout.count())]:
+                    self.row1_layout.insertWidget(i, placeholder, 1)
+                    placeholder.show()
+        
+        # Second row (indices 4-7)
+        for i in range(4, 8):
+            is_visible = self.gauge_visibility.get(i, True)
+            gauge = self.gauges[i]
+            placeholder = self.placeholders[i]
+            row_index = i - 4  # Convert to 0-3 for row2 layout
+            
+            if is_visible:
+                # Show gauge, hide placeholder
+                if placeholder in [self.row2_layout.itemAt(j).widget() for j in range(self.row2_layout.count())]:
+                    self.row2_layout.removeWidget(placeholder)
+                    placeholder.hide()
+                if gauge not in [self.row2_layout.itemAt(j).widget() for j in range(self.row2_layout.count())]:
+                    self.row2_layout.insertWidget(row_index, gauge, 1)
+                    gauge.show()
+            else:
+                # Show placeholder, hide gauge
+                if gauge in [self.row2_layout.itemAt(j).widget() for j in range(self.row2_layout.count())]:
+                    self.row2_layout.removeWidget(gauge)
+                    gauge.hide()
+                if placeholder not in [self.row2_layout.itemAt(j).widget() for j in range(self.row2_layout.count())]:
+                    self.row2_layout.insertWidget(row_index, placeholder, 1)
+                    placeholder.show()
+    
+    def save_visibility_settings(self):
+        """Save gauge visibility settings to configuration"""
+        try:
+            config = load_encrypted_config()
+            if config is None:
+                config = {}
+            
+            # Initialize PressureGaugeVisibility if it doesn't exist
+            if "PressureGaugeVisibility" not in config:
+                config["PressureGaugeVisibility"] = {}
+            
+            # Save current visibility settings
+            config["PressureGaugeVisibility"] = self.gauge_visibility.copy()
+            
+            # Save updated config
+            save_encrypted_config(config)
+            print("✅ Pressure gauge visibility settings saved")
+            
+        except Exception as e:
+            print(f"Error saving pressure gauge visibility settings: {e}")
+    
+    def load_visibility_settings(self):
+        """Load gauge visibility settings from configuration with validation"""
+        try:
+            config = load_encrypted_config()
+            if config and "PressureGaugeVisibility" in config:
+                # Validate configuration before applying
+                is_valid, validation_message = validate_gauge_visibility_config(config)
+                if is_valid:
+                    # Convert string keys to integers for compatibility
+                    visibility_config = config["PressureGaugeVisibility"]
+                    self.gauge_visibility = {}
+                    for key, value in visibility_config.items():
+                        try:
+                            gauge_id = int(key)
+                            if 0 <= gauge_id < 8:
+                                self.gauge_visibility[gauge_id] = bool(value)
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    # Fill missing gauges with default visibility
+                    for i in range(8):
+                        if i not in self.gauge_visibility:
+                            self.gauge_visibility[i] = True
+                    
+                    self.update_gauge_visibility()
+                    
+                    # Show industry profile info if available
+                    industry_profile = config.get("IndustryProfile", "custom")
+                    if industry_profile != "custom":
+                        industry_configs = get_industry_default_configurations()
+                        profile_name = industry_configs.get(industry_profile, {}).get("name", industry_profile)
+                        print(f"✅ Pressure gauge visibility settings loaded (Profile: {profile_name})")
+                    else:
+                        print("✅ Pressure gauge visibility settings loaded")
+                else:
+                    print(f"⚠️ Configuration validation failed: {validation_message}")
+                    self.gauge_visibility = {i: True for i in range(8)}
+            else:
+                # Apply default based on current industry profile
+                industry_profile = get_current_industry_profile()
+                if industry_profile != "custom":
+                    industry_configs = get_industry_default_configurations()
+                    if industry_profile in industry_configs:
+                        self.gauge_visibility = industry_configs[industry_profile]["pressure_gauges"].copy()
+                        print(f"✅ Applied default pressure gauge visibility for {industry_configs[industry_profile]['name']}")
+                    else:
+                        self.gauge_visibility = {i: True for i in range(8)}
+                else:
+                    self.gauge_visibility = {i: True for i in range(8)}
+                
+        except Exception as e:
+            print(f"Error loading pressure gauge visibility settings: {e}")
+            # Default: all gauges visible
+            self.gauge_visibility = {i: True for i in range(8)}
+
+    def set_developer_mode(self, enabled):
+        """Set developer mode and show/hide settings button"""
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.setVisible(enabled)
+
+    def is_developer_mode_active(self):
+        """Check if developer mode is active"""
+        if self.parent_window and hasattr(self.parent_window, 'developer_mode_active'):
+            return self.parent_window.developer_mode_active
+        return False
 
 
 # ---------------- Editable Label Widget ----------------
@@ -6767,6 +7582,9 @@ class EngineTemperaturesTab(QWidget):
         # Current section (0 or 1)
         self.current_section = 0
         
+        # Initialize gauge visibility settings (16 gauges total)
+        self.gauge_visibility = {i: True for i in range(16)}
+        
         # Temperature gauge labels - Split into two sections
         self.section_labels = [
             # Section 1: Primary Engine Temperatures (8 gauges)
@@ -6793,16 +7611,21 @@ class EngineTemperaturesTab(QWidget):
             ]
         ]
         
-        # Create all 16 temperature gauges with indices
+        # Create all 16 temperature gauges and placeholders with indices
         self.temp_gauges = []
+        self.temp_placeholders = []
         gauge_index = 0
         for section_labels in self.section_labels:
             section_gauges = []
+            section_placeholders = []
             for label in section_labels:
                 gauge = CircularTemperatureGauge(label, max_value=250, gauge_index=gauge_index, parent_window=self.parent_window)
+                placeholder = GaugePlaceholder(label)
                 section_gauges.append(gauge)
+                section_placeholders.append(placeholder)
                 gauge_index += 1
             self.temp_gauges.append(section_gauges)
+            self.temp_placeholders.append(section_placeholders)
         
         # Main layout
         main_layout = QVBoxLayout()
@@ -6897,6 +7720,33 @@ class EngineTemperaturesTab(QWidget):
         header_layout.addWidget(self.title, 1)
         header_layout.addLayout(nav_layout)
         
+        # Settings button
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setFixedSize(45, 45)
+        self.settings_btn.setCursor(Qt.PointingHandCursor)
+        self.settings_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(121, 192, 255, 0.2);
+                border: 2px solid rgba(121, 192, 255, 0.4);
+                border-radius: 22px;
+                color: rgb(121, 192, 255);
+                font-size: 18px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: rgba(121, 192, 255, 0.3);
+                border: 2px solid rgba(121, 192, 255, 0.6);
+                color: rgb(121, 192, 255);
+            }
+            QPushButton:pressed {
+                background: rgba(88, 166, 255, 0.4);
+                border: 2px solid rgba(88, 166, 255, 0.6);
+            }
+        """)
+        self.settings_btn.clicked.connect(self.show_settings_dialog)
+        self.settings_btn.setVisible(False)  # Hidden by default, shown only in developer mode
+        header_layout.addWidget(self.settings_btn)
+        
         # Gauge display area
         self.gauge_container = QWidget()
         self.gauge_container.setStyleSheet("background: transparent;")
@@ -6920,6 +7770,9 @@ class EngineTemperaturesTab(QWidget):
         
         # Initialize display
         self.update_section_display()
+        
+        # Load gauge visibility settings
+        self.load_visibility_settings()
     
     def go_to_next_section(self):
         """Switch to next section"""
@@ -6945,12 +7798,29 @@ class EngineTemperaturesTab(QWidget):
         section_names = ["SECTION 1", "SECTION 2"]
         self.title.setText(f"ENGINE TEMPERATURES - {section_names[self.current_section]}")
         
-        # Add current section gauges to layout (4x2 grid)
+        # Add current section gauges/placeholders to layout (4x2 grid)
         current_gauges = self.temp_gauges[self.current_section]
-        for i, gauge in enumerate(current_gauges):
+        current_placeholders = self.temp_placeholders[self.current_section]
+        
+        for i, (gauge, placeholder) in enumerate(zip(current_gauges, current_placeholders)):
+            # Calculate the actual gauge index (section * 8 + position in section)
+            gauge_index = self.current_section * 8 + i
+            is_visible = self.gauge_visibility.get(gauge_index, True)
+            
+            # Calculate grid position based on original index to maintain layout
             row = i // 4
             col = i % 4
-            self.gauge_layout.addWidget(gauge, row, col)
+            
+            if is_visible:
+                # Show gauge, hide placeholder
+                self.gauge_layout.addWidget(gauge, row, col)
+                gauge.setVisible(True)
+                placeholder.setVisible(False)
+            else:
+                # Show placeholder, hide gauge
+                self.gauge_layout.addWidget(placeholder, row, col)
+                placeholder.setVisible(True)
+                gauge.setVisible(False)
         
         # Update navigation button states
         self.prev_btn.setEnabled(self.current_section > 0)
@@ -6986,6 +7856,119 @@ class EngineTemperaturesTab(QWidget):
         for section_gauges in self.temp_gauges:
             for gauge in section_gauges:
                 gauge.set_modbus_client(client)
+    
+    def show_settings_dialog(self):
+        """Show the gauge visibility settings dialog"""
+        # Get all gauge labels (16 total)
+        all_gauge_labels = []
+        for section_labels in self.section_labels:
+            all_gauge_labels.extend(section_labels)
+        
+        # Create and show dialog
+        dialog = GaugeVisibilityDialog(all_gauge_labels, self.gauge_visibility, self)
+        if dialog.exec_() == QDialog.Accepted:
+            # Update visibility settings
+            new_visibility = dialog.get_visibility_settings()
+            self.gauge_visibility = new_visibility
+            self.update_gauge_visibility()
+            self.save_visibility_settings()
+    
+    def update_gauge_visibility(self):
+        """Update the visibility of gauges based on current settings"""
+        # The visibility logic is now handled in update_section_display()
+        # Just refresh the current section display
+        self.update_section_display()
+    
+    def save_visibility_settings(self):
+        """Save gauge visibility settings to configuration"""
+        try:
+            config = load_encrypted_config()
+            if config is None:
+                config = {}
+            
+            # Initialize TemperatureGaugeVisibility if it doesn't exist
+            if "TemperatureGaugeVisibility" not in config:
+                config["TemperatureGaugeVisibility"] = {}
+            
+            # Save current visibility settings
+            config["TemperatureGaugeVisibility"] = self.gauge_visibility.copy()
+            
+            # Save updated config
+            save_encrypted_config(config)
+            print("✅ Temperature gauge visibility settings saved")
+            
+        except Exception as e:
+            print(f"Error saving temperature gauge visibility settings: {e}")
+    
+    def load_visibility_settings(self):
+        """Load gauge visibility settings from configuration with validation"""
+        try:
+            config = load_encrypted_config()
+            if config and "TemperatureGaugeVisibility" in config:
+                # Validate configuration before applying
+                is_valid, validation_message = validate_gauge_visibility_config(config)
+                if is_valid:
+                    # Convert string keys to integers for compatibility
+                    visibility_config = config["TemperatureGaugeVisibility"]
+                    self.gauge_visibility = {}
+                    for key, value in visibility_config.items():
+                        try:
+                            gauge_id = int(key)
+                            if 0 <= gauge_id < 16:
+                                self.gauge_visibility[gauge_id] = bool(value)
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    # Fill missing gauges with default visibility
+                    for i in range(16):
+                        if i not in self.gauge_visibility:
+                            self.gauge_visibility[i] = True
+                    
+                    self.update_gauge_visibility()
+                    
+                    # Show industry profile info if available
+                    industry_profile = config.get("IndustryProfile", "custom")
+                    if industry_profile != "custom":
+                        industry_configs = get_industry_default_configurations()
+                        profile_name = industry_configs.get(industry_profile, {}).get("name", industry_profile)
+                        print(f"✅ Temperature gauge visibility settings loaded (Profile: {profile_name})")
+                    else:
+                        print("✅ Temperature gauge visibility settings loaded")
+                else:
+                    print(f"⚠️ Configuration validation failed: {validation_message}")
+                    self.gauge_visibility = {i: True for i in range(16)}
+            else:
+                # Apply default based on current industry profile
+                industry_profile = get_current_industry_profile()
+                if industry_profile != "custom":
+                    industry_configs = get_industry_default_configurations()
+                    if industry_profile in industry_configs:
+                        # Extend temperature gauge defaults to 16 gauges
+                        temp_defaults = industry_configs[industry_profile]["temperature_gauges"].copy()
+                        for i in range(8, 16):
+                            temp_defaults[i] = True  # Default additional gauges to visible
+                        self.gauge_visibility = temp_defaults
+                        print(f"✅ Applied default temperature gauge visibility for {industry_configs[industry_profile]['name']}")
+                    else:
+                        self.gauge_visibility = {i: True for i in range(16)}
+                else:
+                    self.gauge_visibility = {i: True for i in range(16)}
+                
+        except Exception as e:
+            print(f"Error loading temperature gauge visibility settings: {e}")
+            # Default: all gauges visible
+            self.gauge_visibility = {i: True for i in range(16)}
+
+    def set_developer_mode(self, enabled):
+        """Set developer mode and show/hide settings button"""
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.setVisible(enabled)
+
+    def is_developer_mode_active(self):
+        """Check if developer mode is active"""
+        if self.parent_window and hasattr(self.parent_window, 'developer_mode_active'):
+            return self.parent_window.developer_mode_active
+        return False
 
 
 # ---------------- Modern Voltage Display Widget ----------------
@@ -9989,12 +10972,41 @@ class HMIWindow(QWidget):
         """)
         self.dev_mode_btn.clicked.connect(self.toggle_developer_mode)
 
+        # Configuration Button
+        self.config_btn = QPushButton("⚙️ CONFIG")
+        self.config_btn.setMinimumWidth(110)
+        self.config_btn.setMinimumHeight(32)
+        self.config_btn.setCursor(Qt.PointingHandCursor)
+        self.config_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(80, 120, 60), stop:1 rgb(60, 100, 40));
+                color: rgb(220, 240, 200);
+                border: 1px solid rgb(100, 140, 80);
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(100, 140, 80), stop:1 rgb(80, 120, 60));
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(60, 100, 40), stop:1 rgb(40, 80, 20));
+            }
+        """)
+        self.config_btn.clicked.connect(self.show_configuration_dialog)
+        self.config_btn.setVisible(False)  # Initially hidden, only visible in developer mode
+
         self.control_bar.addWidget(self.port_label)
         self.control_bar.addWidget(self.port_box)
         self.control_bar.addWidget(self.connect_btn)
         self.control_bar.addWidget(self.status_label)
         self.control_bar.addStretch()
         self.control_bar.addWidget(self.test_mode_btn)
+        self.control_bar.addWidget(self.config_btn)
         self.control_bar.addWidget(self.dev_mode_btn)
         self.control_bar.addWidget(self.admin_btn)
 
@@ -10739,6 +11751,11 @@ class HMIWindow(QWidget):
                 # Enable developer mode for all tabs
                 self.cylinder_tab.set_developer_mode(True)
                 self.bearing_tab.set_developer_mode(True)
+                self.pressures_tab.set_developer_mode(True)
+                self.engine_temps_tab.set_developer_mode(True)
+                
+                # Show configuration button in developer mode
+                self.config_btn.setVisible(True)
                 
                 print("✅ Developer Mode activated")
             elif ok:
@@ -10781,6 +11798,11 @@ class HMIWindow(QWidget):
                 # Disable developer mode for all tabs
                 self.cylinder_tab.set_developer_mode(False)
                 self.bearing_tab.set_developer_mode(False)
+                self.pressures_tab.set_developer_mode(False)
+                self.engine_temps_tab.set_developer_mode(False)
+                
+                # Hide configuration button when developer mode is disabled
+                self.config_btn.setVisible(False)
                 
                 print("✅ Developer Mode disabled")
     
@@ -10935,6 +11957,314 @@ class HMIWindow(QWidget):
         # Randomly generate test alarms for history (10% chance per cycle)
         if random.random() < 0.1:
             self.history_tab.generate_test_alarm()
+    
+    # -------- Configuration Dialog --------
+    def show_configuration_dialog(self):
+        """Show configuration dialog for industry profiles and settings"""
+        try:
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QGroupBox, QCheckBox, QMessageBox, QFileDialog, QTextEdit
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("System Configuration")
+            dialog.setFixedSize(600, 500)
+            dialog.setStyleSheet("""
+                QDialog {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(25, 30, 40), stop:1 rgb(15, 20, 30));
+                    color: rgb(200, 220, 240);
+                }
+                QGroupBox {
+                    font-weight: bold;
+                    border: 2px solid rgb(60, 80, 120);
+                    border-radius: 8px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                    color: rgb(200, 220, 240);
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+                QLabel {
+                    color: rgb(200, 220, 240);
+                    font-size: 12px;
+                }
+                QComboBox {
+                    background: rgb(40, 50, 65);
+                    border: 1px solid rgb(80, 100, 140);
+                    border-radius: 4px;
+                    padding: 5px;
+                    color: rgb(200, 220, 240);
+                    min-height: 20px;
+                }
+                QComboBox::drop-down {
+                    border: none;
+                }
+                QComboBox::down-arrow {
+                    image: none;
+                    border-left: 5px solid transparent;
+                    border-right: 5px solid transparent;
+                    border-top: 5px solid rgb(200, 220, 240);
+                }
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(60, 80, 120), stop:1 rgb(40, 60, 100));
+                    color: rgb(200, 220, 240);
+                    border: 1px solid rgb(80, 100, 140);
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(80, 100, 140), stop:1 rgb(60, 80, 120));
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(40, 60, 100), stop:1 rgb(20, 40, 80));
+                }
+            """)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Industry Profile Section
+            profile_group = QGroupBox("Industry Profile")
+            profile_layout = QVBoxLayout(profile_group)
+            
+            profile_info_layout = QHBoxLayout()
+            profile_info_layout.addWidget(QLabel("Current Profile:"))
+            
+            profile_combo = QComboBox()
+            industry_configs = get_industry_default_configurations()
+            current_profile = get_current_industry_profile()
+            
+            for profile_id, config in industry_configs.items():
+                profile_combo.addItem(config["name"], profile_id)
+            
+            # Set current selection
+            for i in range(profile_combo.count()):
+                if profile_combo.itemData(i) == current_profile:
+                    profile_combo.setCurrentIndex(i)
+                    break
+            
+            profile_info_layout.addWidget(profile_combo)
+            profile_layout.addLayout(profile_info_layout)
+            
+            # Profile description
+            profile_desc = QLabel()
+            profile_desc.setWordWrap(True)
+            profile_desc.setStyleSheet("color: rgb(180, 200, 220); font-style: italic; margin: 5px;")
+            
+            def update_profile_description():
+                selected_profile = profile_combo.currentData()
+                if selected_profile in industry_configs:
+                    profile_desc.setText(industry_configs[selected_profile]["description"])
+                else:
+                    profile_desc.setText("Custom configuration")
+            
+            update_profile_description()
+            profile_combo.currentTextChanged.connect(update_profile_description)
+            profile_layout.addWidget(profile_desc)
+            
+            # Apply Profile Button
+            apply_profile_btn = QPushButton("Apply Selected Profile")
+            apply_profile_btn.clicked.connect(lambda: self.apply_industry_profile(profile_combo.currentData(), dialog))
+            profile_layout.addWidget(apply_profile_btn)
+            
+            layout.addWidget(profile_group)
+            
+            # Configuration Management Section
+            config_group = QGroupBox("Configuration Management")
+            config_layout = QVBoxLayout(config_group)
+            
+            # Export/Import buttons
+            export_import_layout = QHBoxLayout()
+            
+            export_btn = QPushButton("Export Configuration")
+            export_btn.clicked.connect(lambda: self.export_configuration())
+            export_import_layout.addWidget(export_btn)
+            
+            import_btn = QPushButton("Import Configuration")
+            import_btn.clicked.connect(lambda: self.import_configuration())
+            export_import_layout.addWidget(import_btn)
+            
+            config_layout.addLayout(export_import_layout)
+            
+            # Reset to defaults button
+            reset_btn = QPushButton("Reset to Default Settings")
+            reset_btn.setStyleSheet("""
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(120, 60, 60), stop:1 rgb(100, 40, 40));
+                    color: rgb(240, 200, 200);
+                    border: 1px solid rgb(140, 80, 80);
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 rgb(140, 80, 80), stop:1 rgb(120, 60, 60));
+                }
+            """)
+            reset_btn.clicked.connect(lambda: self.reset_to_defaults(dialog))
+            config_layout.addWidget(reset_btn)
+            
+            layout.addWidget(config_group)
+            
+            # Current Configuration Info
+            info_group = QGroupBox("Current Configuration Status")
+            info_layout = QVBoxLayout(info_group)
+            
+            config = load_encrypted_config()
+            status_text = QTextEdit()
+            status_text.setMaximumHeight(120)
+            status_text.setReadOnly(True)
+            status_text.setStyleSheet("""
+                QTextEdit {
+                    background: rgb(30, 35, 45);
+                    border: 1px solid rgb(60, 80, 120);
+                    border-radius: 4px;
+                    padding: 5px;
+                    color: rgb(180, 200, 220);
+                    font-family: 'Consolas', monospace;
+                    font-size: 11px;
+                }
+            """)
+            
+            if config:
+                pressure_gauges = len([k for k, v in config.get("PressureGaugeVisibility", {}).items() if v])
+                temp_gauges = len([k for k, v in config.get("TemperatureGaugeVisibility", {}).items() if v])
+                industry_profile = config.get("IndustryProfile", "custom")
+                profile_name = industry_configs.get(industry_profile, {}).get("name", "Custom")
+                
+                status_info = f"""Industry Profile: {profile_name}
+Visible Pressure Gauges: {pressure_gauges}/8
+Visible Temperature Gauges: {temp_gauges}/16
+Configuration File: modbus_config.dat
+Last Modified: {os.path.getmtime('modbus_config.dat') if os.path.exists('modbus_config.dat') else 'Never'}"""
+            else:
+                status_info = "No configuration file found. Using default settings."
+            
+            status_text.setPlainText(status_info)
+            info_layout.addWidget(status_text)
+            
+            layout.addWidget(info_group)
+            
+            # Dialog buttons
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dialog.accept)
+            button_layout.addWidget(close_btn)
+            
+            layout.addLayout(button_layout)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Configuration Error", f"Failed to open configuration dialog:\n{str(e)}")
+            print(f"Configuration dialog error: {e}")
+    
+    def apply_industry_profile(self, profile_id, dialog):
+        """Apply the selected industry profile"""
+        try:
+            if set_industry_profile(profile_id):
+                # Reload visibility settings for all tabs
+                self.pressures_tab.load_visibility_settings()
+                self.engine_temps_tab.load_visibility_settings()
+                
+                industry_configs = get_industry_default_configurations()
+                profile_name = industry_configs.get(profile_id, {}).get("name", profile_id)
+                
+                QMessageBox.information(dialog, "Profile Applied", 
+                                      f"Successfully applied '{profile_name}' profile!\n\n"
+                                      f"Gauge visibility settings have been updated according to this industry profile.")
+                print(f"✅ Applied industry profile: {profile_name}")
+            else:
+                QMessageBox.warning(dialog, "Profile Error", "Failed to apply the selected profile.")
+        except Exception as e:
+            QMessageBox.critical(dialog, "Profile Error", f"Error applying profile:\n{str(e)}")
+            print(f"Error applying profile: {e}")
+    
+    def export_configuration(self):
+        """Export current configuration to JSON file"""
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Export Configuration", 
+                f"intelliscada_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                "JSON Files (*.json)"
+            )
+            
+            if file_path:
+                if export_gauge_visibility_config(file_path):
+                    QMessageBox.information(self, "Export Successful", 
+                                          f"Configuration exported successfully to:\n{file_path}")
+                    print(f"✅ Configuration exported to: {file_path}")
+                else:
+                    QMessageBox.warning(self, "Export Failed", "Failed to export configuration.")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Error exporting configuration:\n{str(e)}")
+            print(f"Export error: {e}")
+    
+    def import_configuration(self):
+        """Import configuration from JSON file"""
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Import Configuration", "",
+                "JSON Files (*.json)"
+            )
+            
+            if file_path:
+                if import_gauge_visibility_config(file_path):
+                    # Reload visibility settings for all tabs
+                    self.pressures_tab.load_visibility_settings()
+                    self.engine_temps_tab.load_visibility_settings()
+                    
+                    QMessageBox.information(self, "Import Successful", 
+                                          f"Configuration imported successfully from:\n{file_path}\n\n"
+                                          f"Gauge visibility settings have been updated.")
+                    print(f"✅ Configuration imported from: {file_path}")
+                else:
+                    QMessageBox.warning(self, "Import Failed", "Failed to import configuration.")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", f"Error importing configuration:\n{str(e)}")
+            print(f"Import error: {e}")
+    
+    def reset_to_defaults(self, dialog):
+        """Reset all settings to defaults"""
+        try:
+            reply = QMessageBox.question(dialog, "Reset to Defaults", 
+                                        "Are you sure you want to reset all settings to defaults?\n\n"
+                                        "This will:\n"
+                                        "• Reset industry profile to Custom\n"
+                                        "• Make all gauges visible\n"
+                                        "• Clear all custom configurations\n\n"
+                                        "This action cannot be undone.",
+                                        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                # Reset to custom profile with all gauges visible
+                config = {
+                    "IndustryProfile": "custom",
+                    "PressureGaugeVisibility": {str(i): True for i in range(8)},
+                    "TemperatureGaugeVisibility": {str(i): True for i in range(16)}
+                }
+                
+                save_encrypted_config(config)
+                
+                # Reload visibility settings for all tabs
+                self.pressures_tab.load_visibility_settings()
+                self.engine_temps_tab.load_visibility_settings()
+                
+                QMessageBox.information(dialog, "Reset Complete", 
+                                      "All settings have been reset to defaults.\n\n"
+                                      "All gauges are now visible and industry profile is set to Custom.")
+                print("✅ Settings reset to defaults")
+                
+                dialog.accept()  # Close the dialog to refresh the display
+        except Exception as e:
+            QMessageBox.critical(dialog, "Reset Error", f"Error resetting settings:\n{str(e)}")
+            print(f"Reset error: {e}")
     
     def get_electrical_values_for_report(self):
         """Get current electrical values from electrical tab for report display"""
