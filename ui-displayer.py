@@ -17,7 +17,6 @@ import time
 import string
 import base64
 import hashlib
-
 import webbrowser
 from datetime import datetime
 from cryptography.fernet import Fernet
@@ -2084,6 +2083,9 @@ class CylinderHeadTab(QWidget):
         self.setMinimumSize(800, 400)
         self.setStyleSheet(CYLINDER_HEAD_BG_STYLE)
         
+        # Enable mouse tracking for hover effects
+        self.setMouseTracking(True)
+        
         # Load bar configurations from config file
         self.bars_config = self.load_bars_config()
         self.left_bars = [bar for bar in self.bars_config.values() if bar.get('section') == 'left']
@@ -2095,6 +2097,15 @@ class CylinderHeadTab(QWidget):
         for bar_id in self.bars_config:
             self.current_temperatures[bar_id] = 0.0
             self.target_temperatures[bar_id] = 0
+        
+        # Hover state tracking for professional hover effects
+        self.hovered_bar = None
+        self.hover_opacity = {}  # Track hover opacity for each bar
+        self.hovered_remove_button = None  # Track which remove button is hovered
+        self.remove_button_hover_opacity = {}  # Track hover opacity for remove buttons
+        for bar_id in self.bars_config:
+            self.hover_opacity[bar_id] = 0.0
+            self.remove_button_hover_opacity[bar_id] = 0.0
         
         # Configuration for 3-color logic (global settings)
         self.config = self.load_config()
@@ -2512,6 +2523,9 @@ class CylinderHeadTab(QWidget):
             # Save configuration
             self.save_bars_config()
             
+            # Update pagination controls
+            self.update_pagination_controls()
+            
             # Trigger repaint
             self.update()
             
@@ -2578,6 +2592,12 @@ class CylinderHeadTab(QWidget):
         
         left_max_pages = max(1, (len(left_bars) + 8) // 9)
         right_max_pages = max(1, (len(right_bars) + 8) // 9)
+        
+        # Auto-switch to page 1 if current page is now empty (after deletion)
+        if self.left_current_page >= left_max_pages and len(left_bars) > 0:
+            self.left_current_page = 0  # Switch to page 1 (0-indexed)
+        if self.right_current_page >= right_max_pages and len(right_bars) > 0:
+            self.right_current_page = 0  # Switch to page 1 (0-indexed)
         
         # Show/hide left section pagination controls
         show_left_pagination = len(left_bars) > 9
@@ -2866,6 +2886,39 @@ class CylinderHeadTab(QWidget):
                 self.current_temperatures[bar_id] += distance * easing_factor
                 needs_update = True
         
+        # Animate hover effects with smooth transitions
+        hover_easing = 0.15  # Faster easing for hover effects
+        for bar_id in self.bars_config:
+            # Animate bar hover effects
+            target_opacity = 1.0 if self.hovered_bar == bar_id else 0.0
+            current_opacity = self.hover_opacity.get(bar_id, 0.0)
+            
+            # Calculate distance to target opacity
+            opacity_distance = target_opacity - current_opacity
+            
+            # If very close to target, snap to it
+            if abs(opacity_distance) < 0.01:
+                self.hover_opacity[bar_id] = target_opacity
+            else:
+                # Smooth opacity transition
+                self.hover_opacity[bar_id] += opacity_distance * hover_easing
+                needs_update = True
+            
+            # Animate remove button hover effects
+            remove_target_opacity = 1.0 if self.hovered_remove_button == bar_id else 0.0
+            remove_current_opacity = self.remove_button_hover_opacity.get(bar_id, 0.0)
+            
+            # Calculate distance to target opacity for remove button
+            remove_opacity_distance = remove_target_opacity - remove_current_opacity
+            
+            # If very close to target, snap to it
+            if abs(remove_opacity_distance) < 0.01:
+                self.remove_button_hover_opacity[bar_id] = remove_target_opacity
+            else:
+                # Smooth opacity transition for remove button
+                self.remove_button_hover_opacity[bar_id] += remove_opacity_distance * hover_easing
+                needs_update = True
+        
         # Check alarm conditions and write coil
         self.check_and_write_alarm()
         
@@ -3084,6 +3137,26 @@ class CylinderHeadTab(QWidget):
                                   bar_width + glow_offset * 2, bar_height + glow_offset * 2)
                 painter.drawRect(glow_rect)
 
+        # Draw professional hover effect (JetBrains-style)
+        hover_opacity = self.hover_opacity.get(bar_id, 0.0)
+        if hover_opacity > 0.01:  # Only draw if there's visible hover effect
+            # Create subtle highlight overlay on the container
+            hover_alpha = int(25 * hover_opacity)  # Max 25 alpha for subtle effect
+            hover_color = QColor(100, 150, 255, hover_alpha)  # Soft blue highlight
+            
+            # Draw hover background overlay
+            painter.setBrush(hover_color)
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(container_rect)
+            
+            # Draw subtle border highlight
+            border_alpha = int(60 * hover_opacity)  # Max 60 alpha for border
+            border_color = QColor(120, 170, 255, border_alpha)  # Slightly brighter blue
+            border_width = max(1, int(1.5 * scale_factor))
+            painter.setPen(QPen(border_color, border_width))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(container_rect)
+
         # Draw label below bar using the configured label
         painter.setPen(QColor(140, 160, 190))
         label_font_size = max(7, int(9 * scale_factor))
@@ -3106,26 +3179,93 @@ class CylinderHeadTab(QWidget):
         # Draw remove button in developer mode only
         if self.is_developer_mode_active():
             remove_btn_size = max(16, int(20 * scale_factor))
-            remove_btn_x = bar_x + bar_width - remove_btn_size - 2
-            remove_btn_y = scale_top + 2
+            # Position at the sharp top-right corner of the bar
+            remove_btn_x = bar_x + bar_width - remove_btn_size
+            remove_btn_y = scale_top
             
             # Store button position for click detection
             if not hasattr(self, 'remove_buttons'):
                 self.remove_buttons = {}
             self.remove_buttons[bar_id] = QRect(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
             
-            # Draw remove button background
-            painter.setBrush(QColor(220, 50, 50, 180))
-            painter.setPen(QPen(QColor(255, 255, 255), max(1, int(1.5 * scale_factor))))
-            painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
-            
-            # Draw X symbol
-            painter.setPen(QPen(QColor(255, 255, 255), max(2, int(2.5 * scale_factor))))
-            margin = remove_btn_size // 4
-            painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
-                           int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
-            painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
-                           int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
+            # Load and draw the remove image
+            try:
+                remove_pixmap = QPixmap("imgs/remove.png")
+                if not remove_pixmap.isNull():
+                    # Scale the image to fit the button size
+                    scaled_pixmap = remove_pixmap.scaled(remove_btn_size, remove_btn_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    
+                    # Check if this button is being hovered (for hover effect)
+                    hover_opacity = getattr(self, 'remove_button_hover_opacity', {}).get(bar_id, 0.0)
+                    
+                    # Draw hover background if hovering
+                    if hover_opacity > 0.01:
+                        hover_alpha = int(100 * hover_opacity)
+                        painter.setBrush(QColor(255, 255, 255, hover_alpha))
+                        painter.setPen(Qt.NoPen)
+                        painter.drawRect(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                    
+                    # Draw the image
+                    painter.drawPixmap(int(remove_btn_x), int(remove_btn_y), scaled_pixmap)
+                else:
+                    # Fallback to original design if image fails to load
+                    painter.setBrush(QColor(220, 50, 50, 180))
+                    painter.setPen(QPen(QColor(255, 255, 255), max(1, int(1.5 * scale_factor))))
+                    painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                    
+                    # Draw X symbol
+                    painter.setPen(QPen(QColor(255, 255, 255), max(2, int(2.5 * scale_factor))))
+                    margin = remove_btn_size // 4
+                    painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
+                                   int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
+                    painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
+                                   int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
+            except Exception:
+                # Fallback to original design if any error occurs
+                painter.setBrush(QColor(220, 50, 50, 180))
+                painter.setPen(QPen(QColor(255, 255, 255), max(1, int(1.5 * scale_factor))))
+                painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                
+                # Draw X symbol
+                painter.setPen(QPen(QColor(255, 255, 255), max(2, int(2.5 * scale_factor))))
+                margin = remove_btn_size // 4
+                painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
+                               int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
+                painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
+                               int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
+
+    def mouseMoveEvent(self, event):
+        """Handle mouse movement for hover effects on temperature bars and remove buttons"""
+        # Check for remove button hover first (higher priority)
+        hovered_remove_button = None
+        if self.is_developer_mode_active() and hasattr(self, 'remove_buttons'):
+            for bar_id, button_rect in self.remove_buttons.items():
+                if button_rect.contains(event.pos()):
+                    hovered_remove_button = bar_id
+                    break
+        
+        # Find which bar (if any) the mouse is hovering over (only if not hovering remove button)
+        hovered_bar = None
+        if not hovered_remove_button:
+            for bar_id, bar_rect in self.bar_rects.items():
+                if bar_rect.contains(event.pos()):
+                    hovered_bar = bar_id
+                    break
+        
+        # Update hover states if they changed
+        if self.hovered_bar != hovered_bar:
+            self.hovered_bar = hovered_bar
+        
+        if self.hovered_remove_button != hovered_remove_button:
+            self.hovered_remove_button = hovered_remove_button
+        
+        # Set cursor based on what's being hovered
+        if self.is_developer_mode_active() and (hovered_bar or hovered_remove_button):
+            self.setCursor(Qt.PointingHandCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        
+        super().mouseMoveEvent(event)
 
 
 # ---------------- Main Bearing Temperature Widget ----------------
@@ -3136,6 +3276,9 @@ class MainBearingTab(QWidget):
         self.setMinimumSize(800, 400)
         self.setStyleSheet(CYLINDER_HEAD_BG_STYLE)
         
+        # Enable mouse tracking for hover effects
+        self.setMouseTracking(True)
+        
         # Load bar configurations from config file
         self.bars_config = self.load_bars_config()
         
@@ -3145,6 +3288,15 @@ class MainBearingTab(QWidget):
         
         # Animation velocities for smooth transitions
         self.velocities = {}
+        
+        # Hover state tracking for professional hover effects
+        self.hovered_bar = None
+        self.hover_opacity = {}  # Track hover opacity for each bar
+        self.hovered_remove_button = None  # Track which remove button is hovered
+        self.remove_button_hover_opacity = {}  # Track hover opacity for remove buttons
+        for bar_id in self.bars_config:
+            self.hover_opacity[bar_id] = 0.0
+            self.remove_button_hover_opacity[bar_id] = 0.0
         
         # Configuration for 3-color logic
         self.config = self.load_config()
@@ -3514,6 +3666,10 @@ class MainBearingTab(QWidget):
         total_bars = len(self.bars_config)
         total_pages = (total_bars + self.bars_per_page - 1) // self.bars_per_page if total_bars > 0 else 1
         
+        # Auto-switch to page 1 if current page is now empty (after deletion)
+        if self.current_page >= total_pages and total_pages > 0:
+            self.current_page = 0  # Switch to page 1 (0-indexed)
+        
         # Show pagination controls only if more than one page
         show_pagination = total_pages > 1
         self.prev_btn.setVisible(show_pagination)
@@ -3563,6 +3719,39 @@ class MainBearingTab(QWidget):
                 if bar_rect.contains(event.pos()):
                     self.open_bar_config(bar_id)
                     return
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse movement for hover effects on temperature bars and remove buttons"""
+        # Check for remove button hover first (higher priority)
+        hovered_remove_button = None
+        if self.is_developer_mode_active() and hasattr(self, 'remove_buttons'):
+            for bar_id, button_rect in self.remove_buttons.items():
+                if button_rect.contains(event.pos()):
+                    hovered_remove_button = bar_id
+                    break
+        
+        # Find which bar (if any) the mouse is hovering over (only if not hovering remove button)
+        hovered_bar = None
+        if not hovered_remove_button:
+            for bar_id, bar_rect in self.bar_rects.items():
+                if bar_rect.contains(event.pos()):
+                    hovered_bar = bar_id
+                    break
+        
+        # Update hover states if they changed
+        if self.hovered_bar != hovered_bar:
+            self.hovered_bar = hovered_bar
+        
+        if self.hovered_remove_button != hovered_remove_button:
+            self.hovered_remove_button = hovered_remove_button
+        
+        # Set cursor based on what's being hovered
+        if self.is_developer_mode_active() and (hovered_bar or hovered_remove_button):
+            self.setCursor(Qt.PointingHandCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        
+        super().mouseMoveEvent(event)
     
     def set_modbus_client(self, client):
         """Set the Modbus client for coil writing"""
@@ -3672,6 +3861,39 @@ class MainBearingTab(QWidget):
                 self.current_temperatures[bar_id] = target
             else:
                 self.current_temperatures[bar_id] += distance * easing_factor
+                needs_update = True
+        
+        # Animate hover effects with smooth transitions
+        hover_easing = 0.15  # Faster easing for hover effects
+        for bar_id in self.bars_config:
+            # Animate bar hover effects
+            target_opacity = 1.0 if self.hovered_bar == bar_id else 0.0
+            current_opacity = self.hover_opacity.get(bar_id, 0.0)
+            
+            # Calculate distance to target opacity
+            opacity_distance = target_opacity - current_opacity
+            
+            # If very close to target, snap to it
+            if abs(opacity_distance) < 0.01:
+                self.hover_opacity[bar_id] = target_opacity
+            else:
+                # Smooth opacity transition
+                self.hover_opacity[bar_id] += opacity_distance * hover_easing
+                needs_update = True
+            
+            # Animate remove button hover effects
+            remove_target_opacity = 1.0 if self.hovered_remove_button == bar_id else 0.0
+            remove_current_opacity = self.remove_button_hover_opacity.get(bar_id, 0.0)
+            
+            # Calculate distance to target opacity for remove button
+            remove_opacity_distance = remove_target_opacity - remove_current_opacity
+            
+            # If very close to target, snap to it
+            if abs(remove_opacity_distance) < 0.01:
+                self.remove_button_hover_opacity[bar_id] = remove_target_opacity
+            else:
+                # Smooth opacity transition for remove button
+                self.remove_button_hover_opacity[bar_id] += remove_opacity_distance * hover_easing
                 needs_update = True
         
         # Check alarm conditions
@@ -3845,6 +4067,26 @@ class MainBearingTab(QWidget):
                                       bar_width + glow_offset * 2, bar_height + glow_offset * 2)
                     painter.drawRect(glow_rect)
 
+            # Draw professional hover effect (JetBrains-style)
+            hover_opacity = self.hover_opacity.get(bar_id, 0.0)
+            if hover_opacity > 0.01:  # Only draw if there's visible hover effect
+                # Create subtle highlight overlay on the container
+                hover_alpha = int(25 * hover_opacity)  # Max 25 alpha for subtle effect
+                hover_color = QColor(100, 150, 255, hover_alpha)  # Soft blue highlight
+                
+                # Draw hover background overlay
+                painter.setBrush(hover_color)
+                painter.setPen(Qt.NoPen)
+                painter.drawRect(container_rect)
+                
+                # Draw subtle border highlight
+                border_alpha = int(60 * hover_opacity)  # Max 60 alpha for border
+                border_color = QColor(120, 170, 255, border_alpha)  # Slightly brighter blue
+                border_width = max(1, int(1.5 * scale_factor))
+                painter.setPen(QPen(border_color, border_width))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(container_rect)
+
             # Draw label below bar
             label = bar_config.get('label', f'B{bar_id}')
             painter.setPen(QColor(140, 160, 190))
@@ -3857,24 +4099,58 @@ class MainBearingTab(QWidget):
             # Draw remove button in developer mode only
             if self.is_developer_mode_active():
                 remove_btn_size = max(16, int(20 * scale_factor))
-                remove_btn_x = bar_x + bar_width - remove_btn_size - 2
-                remove_btn_y = scale_top + 2
+                # Position at the sharp top-right corner of the bar
+                remove_btn_x = bar_x + bar_width - remove_btn_size
+                remove_btn_y = scale_top
                 
                 # Store button rect for click detection
                 self.remove_buttons[bar_id] = QRect(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
                 
-                # Draw button background
-                painter.setBrush(QColor(255, 60, 60, 200))
-                painter.setPen(QPen(QColor(255, 255, 255), 1))
-                painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
-                
-                # Draw X
-                painter.setPen(QPen(QColor(255, 255, 255), 2))
-                margin = remove_btn_size // 4
-                painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
-                               int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
-                painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
-                               int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
+                # Load and draw the remove image
+                try:
+                    remove_pixmap = QPixmap("imgs/remove.png")
+                    if not remove_pixmap.isNull():
+                        # Scale the image to fit the button size
+                        scaled_pixmap = remove_pixmap.scaled(remove_btn_size, remove_btn_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        
+                        # Check if this button is being hovered (for hover effect)
+                        hover_opacity = getattr(self, 'remove_button_hover_opacity', {}).get(bar_id, 0.0)
+                        
+                        # Draw hover background if hovering
+                        if hover_opacity > 0.01:
+                            hover_alpha = int(100 * hover_opacity)
+                            painter.setBrush(QColor(255, 255, 255, hover_alpha))
+                            painter.setPen(Qt.NoPen)
+                            painter.drawRect(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                        
+                        # Draw the image
+                        painter.drawPixmap(int(remove_btn_x), int(remove_btn_y), scaled_pixmap)
+                    else:
+                        # Fallback to original design if image fails to load
+                        painter.setBrush(QColor(255, 60, 60, 200))
+                        painter.setPen(QPen(QColor(255, 255, 255), 1))
+                        painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                        
+                        # Draw X
+                        painter.setPen(QPen(QColor(255, 255, 255), 2))
+                        margin = remove_btn_size // 4
+                        painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
+                                       int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
+                        painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
+                                       int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
+                except Exception:
+                    # Fallback to original design if any error occurs
+                    painter.setBrush(QColor(255, 60, 60, 200))
+                    painter.setPen(QPen(QColor(255, 255, 255), 1))
+                    painter.drawEllipse(int(remove_btn_x), int(remove_btn_y), remove_btn_size, remove_btn_size)
+                    
+                    # Draw X
+                    painter.setPen(QPen(QColor(255, 255, 255), 2))
+                    margin = remove_btn_size // 4
+                    painter.drawLine(int(remove_btn_x + margin), int(remove_btn_y + margin),
+                                   int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + remove_btn_size - margin))
+                    painter.drawLine(int(remove_btn_x + remove_btn_size - margin), int(remove_btn_y + margin),
+                                   int(remove_btn_x + margin), int(remove_btn_y + remove_btn_size - margin))
 
             # Draw digital temperature display below label with color matching bar
             painter.setPen(color)
@@ -3886,6 +4162,42 @@ class MainBearingTab(QWidget):
             painter.drawText(int(bar_x - temp_width_extra), scale_bottom + temp_y_offset, bar_width + temp_width_extra * 2, temp_height, Qt.AlignCenter, f"{actual_temp:.1f}°C")
 
         painter.end()
+    
+    def mousePressEvent(self, event):
+        """Handle mouse clicks for remove buttons and bar configuration"""
+        # Handle remove button clicks (developer mode only)
+        if self.is_developer_mode_active() and hasattr(self, 'remove_buttons'):
+            for bar_id, button_rect in self.remove_buttons.items():
+                if button_rect.contains(event.pos()):
+                    self.remove_bar(bar_id)
+                    return
+        
+        # Handle bar clicks for configuration (developer mode only)
+        if self.is_developer_mode_active():
+            for bar_id, bar_rect in self.bar_rects.items():
+                if bar_rect.contains(event.pos()):
+                    self.open_bar_config(bar_id)
+                    return
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse movement for hover effects on temperature bars"""
+        # Find which bar (if any) the mouse is hovering over
+        hovered_bar = None
+        for bar_id, bar_rect in self.bar_rects.items():
+            if bar_rect.contains(event.pos()):
+                hovered_bar = bar_id
+                break
+        
+        # Update hover state if it changed
+        if self.hovered_bar != hovered_bar:
+            self.hovered_bar = hovered_bar
+            # Set cursor to pointer when hovering over bars in developer mode
+            if self.is_developer_mode_active() and hovered_bar:
+                self.setCursor(Qt.PointingHandCursor)
+            else:
+                self.setCursor(Qt.ArrowCursor)
+        
+        super().mouseMoveEvent(event)
 
 
 # ---------------- Circular Pressure Gauge Widget ----------------
