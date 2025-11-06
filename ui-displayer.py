@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (
     QTabWidget, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QHeaderView,
     QSplashScreen, QCheckBox
 )
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QEvent, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient, QConicalGradient, QPixmap
+from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient, QConicalGradient, QPixmap, QIcon
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QEvent, QThread, pyqtSignal, QSize
 import math
 import random
 import json
@@ -24,6 +24,232 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pymodbus.client import ModbusSerialClient
 from styles import *
+
+# ============== FUTURISTIC UI COMPONENTS ==============
+from PyQt5.QtWidgets import QFrame
+from PyQt5.QtGui import QPainterPath
+
+class HolographicPanel(QFrame):
+    """Panel with angled corners and glowing borders - Tony Stark style"""
+    def __init__(self, parent=None, corner_size=15, glow_intensity=0.6):
+        super().__init__(parent)
+        self.corner_size = corner_size
+        self.glow_intensity = glow_intensity
+        self.setMinimumSize(100, 100)
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        rect = self.rect()
+        w, h = rect.width(), rect.height()
+        cs = self.corner_size
+        
+        # Create angled corner path
+        path = QPainterPath()
+        path.moveTo(cs, 0)
+        path.lineTo(w - cs, 0)
+        path.lineTo(w, cs)
+        path.lineTo(w, h - cs)
+        path.lineTo(w - cs, h)
+        path.lineTo(cs, h)
+        path.lineTo(0, h - cs)
+        path.lineTo(0, cs)
+        path.closeSubpath()
+        
+        # Draw semi-transparent background with gradient - Blue theme
+        bg_gradient = QLinearGradient(0, 0, 0, h)
+        bg_gradient.setColorAt(0, QColor(30, 40, 55, 120))
+        bg_gradient.setColorAt(1, QColor(20, 30, 45, 150))
+        painter.fillPath(path, QBrush(bg_gradient))
+        
+        # Draw glowing border - multi-layer (Blue theme)
+        painter.setPen(QPen(QColor(58, 106, 255, int(40 * self.glow_intensity)), 4))
+        painter.drawPath(path)
+        painter.setPen(QPen(QColor(78, 126, 255, int(80 * self.glow_intensity)), 2))
+        painter.drawPath(path)
+        painter.setPen(QPen(QColor(100, 150, 255, int(180 * self.glow_intensity)), 1))
+        painter.drawPath(path)
+
+
+class CircularGaugeWidget(QWidget):
+    """Circular gauge with glowing rings - Tony Stark style"""
+    def __init__(self, parent=None, title="GAUGE", unit="", min_val=0, max_val=100):
+        super().__init__(parent)
+        self.title = title
+        self.unit = unit
+        self.min_val = min_val
+        self.max_val = max_val
+        self.current_value = 0
+        self.target_value = 0
+        self.setMinimumSize(180, 180)
+        self.glow_phase = 0
+        
+        self.animation_timer = QTimer()
+        self.animation_timer.timeout.connect(self.animate_value)
+        self.animation_timer.start(30)
+        
+    def set_value(self, value):
+        self.target_value = max(self.min_val, min(self.max_val, value))
+        
+    def animate_value(self):
+        if abs(self.current_value - self.target_value) < 0.5:
+            self.current_value = self.target_value
+        else:
+            self.current_value += (self.target_value - self.current_value) * 0.15
+        self.glow_phase += 0.05
+        if self.glow_phase > math.pi * 2:
+            self.glow_phase = 0
+        self.update()
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        rect = self.rect()
+        center_x = rect.width() / 2
+        center_y = rect.height() / 2
+        radius = min(center_x, center_y) - 20
+        
+        # Title
+        if self.title:
+            painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            painter.setPen(QColor(100, 150, 200))
+            painter.drawText(rect, Qt.AlignTop | Qt.AlignHCenter, self.title)
+        
+        # Rings - Blue theme
+        painter.setPen(QPen(QColor(58, 106, 255, 40), 2))
+        painter.drawEllipse(QPointF(center_x, center_y), radius + 5, radius + 5)
+        
+        glow_intensity = int(100 + 60 * math.sin(self.glow_phase))
+        painter.setPen(QPen(QColor(78, 126, 255, glow_intensity), 1))
+        painter.drawEllipse(QPointF(center_x, center_y), radius, radius)
+        
+        # Background arc
+        bg_rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
+        painter.setPen(QPen(QColor(40, 55, 75, 100), 12, cap=Qt.RoundCap))
+        painter.drawArc(bg_rect, 135 * 16, -270 * 16)
+        
+        # Value arc - Blue theme colors
+        if self.max_val > self.min_val:
+            value_percentage = (self.current_value - self.min_val) / (self.max_val - self.min_val)
+            value_span = -270 * 16 * value_percentage
+            
+            if value_percentage < 0.6:
+                arc_color = QColor(58, 106, 255)  # Blue - normal
+            elif value_percentage < 0.85:
+                arc_color = QColor(255, 180, 0)  # Orange/Yellow - warning
+            else:
+                arc_color = QColor(255, 60, 60)  # Red - critical
+            
+            painter.setPen(QPen(QColor(arc_color.red(), arc_color.green(), arc_color.blue(), 60), 16, cap=Qt.RoundCap))
+            painter.drawArc(bg_rect, 135 * 16, value_span)
+            painter.setPen(QPen(QColor(arc_color.red(), arc_color.green(), arc_color.blue(), 120), 12, cap=Qt.RoundCap))
+            painter.drawArc(bg_rect, 135 * 16, value_span)
+            painter.setPen(QPen(arc_color, 10, cap=Qt.RoundCap))
+            painter.drawArc(bg_rect, 135 * 16, value_span)
+        
+        # Center value
+        painter.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        painter.setPen(QColor(200, 220, 240))
+        painter.drawText(rect.adjusted(0, 0, 0, -15), Qt.AlignCenter, f"{self.current_value:.1f}")
+        
+        # Unit
+        painter.setFont(QFont("Segoe UI", 9))
+        painter.setPen(QColor(100, 150, 200))
+        painter.drawText(rect.adjusted(0, 25, 0, 0), Qt.AlignCenter, self.unit)
+
+
+class AnimatedStatusIndicator(QWidget):
+    """Animated status indicator with pulse effect"""
+    def __init__(self, parent=None, size=12):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self.status = "normal"
+        self.pulse_phase = 0
+        
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_animation)
+        self.timer.start(50)
+        
+    def set_status(self, status):
+        self.status = status
+        
+    def update_animation(self):
+        self.pulse_phase += 0.1
+        if self.pulse_phase > math.pi * 2:
+            self.pulse_phase = 0
+        self.update()
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        center = self.rect().center()
+        base_radius = self.width() / 2 - 2
+        
+        if self.status == "critical":
+            color = QColor(255, 60, 60)
+        elif self.status == "warning":
+            color = QColor(255, 180, 0)
+        elif self.status == "good":
+            color = QColor(100, 255, 100)
+        else:
+            color = QColor(58, 106, 255)  # Blue theme
+        
+        pulse = 0.3 + 0.2 * math.sin(self.pulse_phase)
+        outer_radius = base_radius * (1 + pulse)
+        
+        gradient = QRadialGradient(center, outer_radius)
+        gradient.setColorAt(0, QColor(color.red(), color.green(), color.blue(), 100))
+        gradient.setColorAt(1, QColor(color.red(), color.green(), color.blue(), 0))
+        painter.setBrush(QBrush(gradient))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(center, outer_radius, outer_radius)
+        
+        painter.setBrush(QBrush(color))
+        painter.drawEllipse(center, base_radius * 0.6, base_radius * 0.6)
+
+
+class GlowingLabel(QLabel):
+    """Label with glowing text effect - Blue theme"""
+    def __init__(self, text="", parent=None, glow_color=QColor(100, 150, 200)):
+        super().__init__(text, parent)
+        self.setStyleSheet(f"""
+            color: rgb({glow_color.red()}, {glow_color.green()}, {glow_color.blue()});
+            font-weight: 600;
+            letter-spacing: 1px;
+        """)
+
+
+class TechnicalDivider(QWidget):
+    """Technical divider line with glow"""
+    def __init__(self, parent=None, orientation='horizontal'):
+        super().__init__(parent)
+        self.orientation = orientation
+        if orientation == 'horizontal':
+            self.setFixedHeight(2)
+            self.setMinimumWidth(50)
+        else:
+            self.setFixedWidth(2)
+            self.setMinimumHeight(50)
+            
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        if self.orientation == 'horizontal':
+            w = self.width()
+            painter.setPen(QPen(QColor(58, 106, 255, 60), 2))
+            painter.drawLine(0, 1, w, 1)
+            painter.setPen(QPen(QColor(100, 150, 255, 150), 1))
+            painter.drawLine(0, 1, w, 1)
+        else:
+            h = self.height()
+            painter.setPen(QPen(QColor(58, 106, 255, 60), 2))
+            painter.drawLine(1, 0, 1, h)
+            painter.setPen(QPen(QColor(100, 150, 255, 150), 1))
+            painter.drawLine(1, 0, 1, h)
 
 def generate_admin_password():
     """Generate a random 8-character password with letters, numbers, and special characters"""
@@ -1054,6 +1280,116 @@ def create_default_modbus_config(admin_password):
             "Voltage": [],
             "Current": [],
             "Power": []
+        },
+        "StartupConditions": {
+            "LO Press > 0.5 bar": {
+                "device_id": 1,
+                "address": 1,
+                "register_type": "Input Register",
+                "comparison": ">",
+                "value": 0.5
+            },
+            "Fuel oil inlet pressure > 2.0 bar": {
+                "device_id": 1,
+                "address": 0,
+                "register_type": "Input Register",
+                "comparison": ">",
+                "value": 2.0
+            },
+            "HT-water temperature > 50°C": {
+                "device_id": 4,
+                "address": 3,
+                "register_type": "Holding Register",
+                "comparison": ">",
+                "value": 50.0
+            },
+            "Starting air pressure > 16 bar": {
+                "device_id": 1,
+                "address": 5,
+                "register_type": "Input Register",
+                "comparison": ">",
+                "value": 16.0
+            },
+            "Turning gear disengaged": {
+                "device_id": 1,
+                "address": 0,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "Stop lever in running position": {
+                "device_id": 1,
+                "address": 1,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 1
+            },
+            "Control room emerg. stop CFC011 inactive": {
+                "device_id": 1,
+                "address": 2,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "Engine stopped": {
+                "device_id": 1,
+                "address": 3,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 1
+            },
+            "Breaker trip alarm inactive": {
+                "device_id": 1,
+                "address": 4,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "Engine shutdown alarm inactive": {
+                "device_id": 1,
+                "address": 5,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "Start failure inactive": {
+                "device_id": 1,
+                "address": 6,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "AVR MCB closed": {
+                "device_id": 1,
+                "address": 7,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 1
+            },
+            "Stop solenoid valve inactive": {
+                "device_id": 1,
+                "address": 8,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 0
+            },
+            "Breaker conditions": {
+                "device_id": 1,
+                "address": 9,
+                "register_type": "Coil",
+                "comparison": "==",
+                "value": 1
+            }
+        },
+        "EngineControl": {
+            "Start": {
+                "device_id": 1,
+                "coil_address": 10
+            },
+            "Stop": {
+                "device_id": 1,
+                "coil_address": 11
+            }
         }
     }
 
@@ -2448,28 +2784,24 @@ class CylinderHeadTab(QWidget):
     
     def setup_ui(self):
         """Setup UI elements including buttons"""
-        # Settings button - positioned at top-right
-        self.settings_btn = QPushButton("⚙️", self)
-        self.settings_btn.setFixedSize(40, 40)
+        # Settings button - positioned at top-right with Microsoft-like styling
+        self.settings_btn = QPushButton(self)
+        self.settings_btn.setFixedSize(36, 36)
         self.settings_btn.setCursor(Qt.PointingHandCursor)
+        self.settings_btn.setIcon(QIcon("imgs/setting.png"))
+        self.settings_btn.setIconSize(QSize(18, 18))
         self.settings_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(40, 50, 65), stop:1 rgb(30, 40, 55));
-                color: rgb(0, 200, 255);
-                border: 2px solid rgb(60, 80, 100);
-                border-radius: 20px;
-                font-size: 20px;
+                background: rgb(45, 55, 70);
+                border: 1px solid rgb(60, 70, 85);
+                border-radius: 3px;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(0, 200, 255), stop:1 rgb(0, 150, 200));
-                color: rgb(10, 20, 30);
-                border: 2px solid rgb(0, 220, 255);
+                background: rgb(60, 75, 95);
+                border: 1px solid rgb(0, 120, 215);
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(0, 150, 200), stop:1 rgb(0, 100, 150));
+                background: rgb(0, 120, 215);
             }
         """)
         self.settings_btn.clicked.connect(self.open_settings)
@@ -2481,53 +2813,51 @@ class CylinderHeadTab(QWidget):
         self.add_btn.setCursor(Qt.PointingHandCursor)
         self.add_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 rgba(45, 45, 45, 180), stop:1 rgba(60, 60, 60, 180));
-                color: rgb(255, 255, 255);
-                border: 1px solid rgba(120, 120, 120, 100);
-                border-radius: 4px;
+                background: rgb(45, 55, 70);
+                color: rgb(200, 210, 220);
+                border: 1px solid rgb(60, 70, 85);
+                border-radius: 3px;
                 font-size: 18px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 rgba(0, 120, 215, 180), stop:1 rgba(0, 100, 180, 180));
-                border: 1px solid rgba(0, 120, 215, 200);
+                background: rgb(60, 75, 95);
+                border: 1px solid rgb(0, 120, 215);
+                color: white;
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 rgba(0, 90, 158, 200), stop:1 rgba(0, 70, 130, 200));
+                background: rgb(0, 120, 215);
+                color: white;
             }
         """)
         self.add_btn.clicked.connect(self.show_add_bar_dialog)
         self.add_btn.setToolTip("Add New Temperature Bar")
         self.add_btn.setVisible(False)  # Hidden by default, shown in admin mode
         
-        # Pagination navigation buttons
+        # Pagination navigation buttons - Microsoft-like style
         button_style = """
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgba(45, 45, 45, 180), stop:1 rgba(60, 60, 60, 180));
-                color: rgb(255, 255, 255);
-                border: 1px solid rgba(120, 120, 120, 100);
-                border-radius: 4px;
+                background: rgb(45, 55, 70);
+                color: rgb(200, 210, 220);
+                border: 1px solid rgb(60, 70, 85);
+                border-radius: 3px;
                 font-size: 12px;
-                font-weight: bold;
+                font-weight: 500;
                 padding: 4px 8px;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgba(0, 120, 215, 180), stop:1 rgba(0, 100, 180, 180));
-                border: 1px solid rgba(0, 120, 215, 200);
+                background: rgb(60, 75, 95);
+                border: 1px solid rgb(0, 120, 215);
+                color: white;
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgba(0, 90, 158, 200), stop:1 rgba(0, 70, 130, 200));
+                background: rgb(0, 120, 215);
+                color: white;
             }
             QPushButton:disabled {
-                background: rgba(30, 30, 30, 100);
-                color: rgba(120, 120, 120, 150);
-                border: 1px solid rgba(60, 60, 60, 100);
+                background: rgb(35, 40, 50);
+                color: rgb(100, 110, 120);
+                border: 1px solid rgb(50, 60, 75);
             }
         """
         
@@ -2565,29 +2895,29 @@ class CylinderHeadTab(QWidget):
         self.right_next_btn.setToolTip("Next page for right section")
         self.right_next_btn.setVisible(False)
         
-        # Page indicator labels
+        # Page indicator labels - Microsoft-like style
         self.left_page_label = QLabel("", self)
         self.left_page_label.setStyleSheet("""
-            color: rgb(200, 220, 240);
-            font-size: 10px;
-            font-weight: bold;
-            background: rgba(30, 40, 55, 150);
-            border: 1px solid rgba(60, 80, 100, 100);
+            color: rgb(200, 210, 220);
+            font-size: 11px;
+            font-weight: 500;
+            background: rgb(30, 40, 55);
+            border: 1px solid rgb(60, 70, 85);
             border-radius: 3px;
-            padding: 2px 6px;
+            padding: 3px 8px;
         """)
         self.left_page_label.setAlignment(Qt.AlignCenter)
         self.left_page_label.setVisible(False)
         
         self.right_page_label = QLabel("", self)
         self.right_page_label.setStyleSheet("""
-            color: rgb(200, 220, 240);
-            font-size: 10px;
-            font-weight: bold;
-            background: rgba(30, 40, 55, 150);
-            border: 1px solid rgba(60, 80, 100, 100);
+            color: rgb(200, 210, 220);
+            font-size: 11px;
+            font-weight: 500;
+            background: rgb(30, 40, 55);
+            border: 1px solid rgb(60, 70, 85);
             border-radius: 3px;
-            padding: 2px 6px;
+            padding: 3px 8px;
         """)
         self.right_page_label.setAlignment(Qt.AlignCenter)
         self.right_page_label.setVisible(False)
@@ -3257,76 +3587,61 @@ class CylinderHeadTab(QWidget):
         offset_x = max(20, (width - total_content_width) // 2)
         scale_left = offset_x + 40
         
-        # ---- Draw horizontal grid lines ----
+        # ---- Draw horizontal grid lines with hi-tech styling ----
         line_width = max(1, int(scale_factor * 1))
-        painter.setPen(QPen(QColor(30, 40, 55, 80), line_width))
+        painter.setPen(QPen(QColor(50, 60, 75, 60), line_width))
         for temp in range(0, 701, 100):
             y = scale_bottom - (temp / 700) * scale_height
             painter.drawLine(scale_left, int(y), 
                            scale_left + gap_between_scale_and_bars + total_bars_width, int(y))
 
-        # ---- Draw Scale (Left) with gradient ----
-        # Create gradient from blue (bottom) to red (top)
-        scale_gradient = QLinearGradient(scale_left, scale_bottom, scale_left, scale_top)
-        scale_gradient.setColorAt(0, QColor(0, 180, 255))      # Blue at bottom (0°C)
-        scale_gradient.setColorAt(0.286, QColor(0, 255, 180))  # Green at ~200°C
-        scale_gradient.setColorAt(0.571, QColor(255, 180, 0))  # Amber at ~400°C
-        scale_gradient.setColorAt(0.857, QColor(255, 60, 100))  # Red at ~600°C
-        scale_gradient.setColorAt(1, QColor(255, 60, 100))     # Red at top (700°C)
-        
-        scale_line_width = max(2, int(scale_factor * 3))
-        pen = QPen(scale_gradient, scale_line_width)
+        # ---- Draw Scale (Left) - Simple professional design ----
+        # Single color, clean professional scale
+        scale_line_width = max(3, int(scale_factor * 4))
+        pen = QPen(QColor(100, 120, 140), scale_line_width)  # Simple gray
+        pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         painter.drawLine(scale_left, scale_top, scale_left, scale_bottom)
 
-        # Draw tick marks and labels (every 100°C)
-        font_size = max(8, int(10 * scale_factor))
-        painter.setFont(QFont("Inter", font_size, QFont.Medium))
+        # Draw tick marks and labels - Simple professional styling
+        font_size = max(9, int(11 * scale_factor))
+        painter.setFont(QFont("Segoe UI", font_size, QFont.Normal))
         for temp in range(0, 701, 100):
             y = scale_bottom - (temp / 700) * scale_height
             
-            # Determine tick color based on temperature
-            if temp < 200:
-                tick_color = QColor(0, 180, 255, 180)
-            elif temp < 400:
-                tick_color = QColor(0, 255, 180, 180)
-            elif temp < 600:
-                tick_color = QColor(255, 180, 0, 180)
-            else:
-                tick_color = QColor(255, 60, 100, 180)
+            # Simple single color for all ticks and text
+            tick_color = QColor(100, 120, 140)
+            text_color = QColor(150, 165, 180)
             
-            # Highlight major ticks
-            tick_length_major = max(8, int(10 * scale_factor))
-            tick_length_minor = max(4, int(6 * scale_factor))
-            tick_width_major = max(1, int(2 * scale_factor))
-            tick_width_minor = max(1, int(1 * scale_factor))
+            # Professional tick marks
+            tick_length_major = max(10, int(12 * scale_factor))
+            tick_length_minor = max(6, int(8 * scale_factor))
+            tick_width = max(2, int(2 * scale_factor))
             
             if temp % 200 == 0:
-                painter.setPen(QPen(tick_color, tick_width_major))
+                painter.setPen(QPen(tick_color, tick_width))
                 painter.drawLine(scale_left - tick_length_major, int(y), scale_left + tick_length_major, int(y))
-                painter.setPen(QColor(200, 220, 240))
+                painter.setPen(text_color)
             else:
-                painter.setPen(QPen(tick_color, tick_width_minor))
+                painter.setPen(QPen(tick_color.darker(120), tick_width - 1))
                 painter.drawLine(scale_left - tick_length_minor, int(y), scale_left + tick_length_minor, int(y))
-                painter.setPen(QColor(150, 170, 190))
+                painter.setPen(QColor(120, 135, 150))
             
-            text_width = max(35, int(42 * scale_factor))
-            text_height = max(16, int(20 * scale_factor))
-            painter.drawText(scale_left - text_width - 8, int(y) - text_height // 2, text_width, text_height, Qt.AlignRight | Qt.AlignVCenter, f"{temp}")
+            text_width = max(40, int(48 * scale_factor))
+            text_height = max(18, int(22 * scale_factor))
+            painter.drawText(scale_left - text_width - 10, int(y) - text_height // 2, text_width, text_height, Qt.AlignRight | Qt.AlignVCenter, f"{temp}")
 
-        # ---- Draw Section Labels ----
-        title_font_size = max(10, int(14 * scale_factor))
-        painter.setFont(QFont("Inter", title_font_size, QFont.Bold))
-        painter.setPen(QColor(255, 255, 255))
+        # ---- Draw Section Labels with hi-tech styling ----
+        title_font_size = max(11, int(13 * scale_factor))
+        painter.setFont(QFont("Segoe UI", title_font_size, QFont.Bold))
+        painter.setPen(QColor(180, 190, 200))
         
         # Left section label
         left_section_start = scale_left + gap_between_scale_and_bars
         left_label_center = left_section_start + left_section_width // 2
-        label_width = max(180, int(250 * scale_factor))  # Increased width to prevent cutoff
+        label_width = max(180, int(250 * scale_factor))
         label_height = max(25, int(30 * scale_factor))
         label_offset = max(35, int(50 * scale_factor))
-        # Use elided text to prevent cutoff on small screens
-        painter.setFont(QFont("Segoe UI", max(10, int(13 * scale_factor)), QFont.Bold))
         painter.drawText(left_label_center - label_width // 2, scale_top - label_offset, label_width, label_height, Qt.AlignCenter, "CYLINDER HEAD LEFT")
         
         # Right section label
@@ -3366,11 +3681,11 @@ class CylinderHeadTab(QWidget):
             # Draw only a faint background container for placeholder
             container_rect = QRect(int(bar_x), int(scale_top), bar_width, int(max_bar_height))
             bg_gradient = QLinearGradient(bar_x, scale_top, bar_x, scale_bottom)
-            bg_gradient.setColorAt(0, QColor(15, 20, 30, 50))  # Very faint background
-            bg_gradient.setColorAt(1, QColor(10, 15, 25, 50))
+            bg_gradient.setColorAt(0, QColor(40, 45, 52, 40))
+            bg_gradient.setColorAt(1, QColor(35, 40, 47, 40))
             painter.setBrush(bg_gradient)
             border_width = max(1, int(1 * scale_factor))
-            painter.setPen(QPen(QColor(25, 35, 45, 80), border_width))  # Very faint border
+            painter.setPen(QPen(QColor(50, 60, 70, 60), border_width))
             painter.drawRect(container_rect)
             return  # Don't draw anything else for placeholders
         
@@ -3383,35 +3698,35 @@ class CylinderHeadTab(QWidget):
         bar_height = (clamped_temp / 700) * max_bar_height
         bar_y = scale_bottom - bar_height
 
-        # Determine color based on 3-color temperature logic (Tony Stark inspired)
-        # Warning Yellow = Too Cold (< low_limit)
-        # Tech Green = Normal (low_limit <= temp <= high_limit)
-        # Repulsor Red = Too Hot (> high_limit)
+        # Determine color based on 3-color temperature logic (Futuristic)
+        # Vibrant Yellow = Too Cold (< low_limit)
+        # Vibrant Green = Normal (low_limit <= temp <= high_limit)
+        # Vibrant Red = Too Hot (> high_limit)
         if actual_temp <= 0:
-            # No data - use dark gray with subtle blue tint
-            color = QColor(50, 60, 75)
+            # No data - use dark gray
+            color = QColor(60, 70, 85)
         elif actual_temp < self.low_limit:
-            # Too cold - Warning Yellow (gold alert)
-            color = QColor(255, 200, 0)  # #FFC800 - Bright warning yellow/gold
+            # Too cold - Vibrant futuristic yellow
+            color = QColor(255, 220, 0)
         elif actual_temp <= self.high_limit:
-            # Normal - Tech Green (HUD display green)
-            color = QColor(0, 255, 180)  # #00FFB4 - Vibrant tech green
+            # Normal - Vibrant futuristic green
+            color = QColor(0, 255, 100)
         else:
-            # Too hot - Repulsor Blast Red (hot red-orange)
-            color = QColor(255, 60, 100)  # #FF3C64 - Hot red with energy
+            # Too hot - Vibrant futuristic red
+            color = QColor(255, 40, 80)
 
-        # Draw background container with subtle gradient
+        # Draw background container with hi-tech styling
         container_rect = QRect(int(bar_x), int(scale_top), bar_width, int(max_bar_height))
         
         # Store bar rectangle for click detection (only for real bars)
         self.bar_rects[bar_id] = container_rect
         
         bg_gradient = QLinearGradient(bar_x, scale_top, bar_x, scale_bottom)
-        bg_gradient.setColorAt(0, QColor(20, 30, 45, 100))
-        bg_gradient.setColorAt(1, QColor(15, 20, 35, 100))
+        bg_gradient.setColorAt(0, QColor(40, 45, 52, 120))
+        bg_gradient.setColorAt(1, QColor(35, 40, 47, 120))
         painter.setBrush(bg_gradient)
-        border_width = max(1, int(1.5 * scale_factor))
-        painter.setPen(QPen(QColor(40, 60, 80), border_width))
+        border_width = max(1, int(2 * scale_factor))
+        painter.setPen(QPen(QColor(55, 65, 75), border_width))
         painter.drawRect(container_rect)
 
         # Draw filled bar with gradient
@@ -3425,10 +3740,10 @@ class CylinderHeadTab(QWidget):
             painter.setPen(Qt.NoPen)
             painter.drawRect(bar_rect)
 
-            # Draw outer glow effect
-            max_glow = max(2, int(3 * scale_factor))
+            # Draw subtle hi-tech glow effect
+            max_glow = max(2, int(2 * scale_factor))
             for glow_offset in range(max_glow, 0, -1):
-                glow_alpha = 20 * (max_glow + 1 - glow_offset)
+                glow_alpha = 15 * (max_glow + 1 - glow_offset)
                 glow_color = QColor(color.red(), color.green(), color.blue(), glow_alpha)
                 painter.setPen(QPen(glow_color, glow_offset))
                 painter.setBrush(Qt.NoBrush)
@@ -3436,12 +3751,12 @@ class CylinderHeadTab(QWidget):
                                   bar_width + glow_offset * 2, bar_height + glow_offset * 2)
                 painter.drawRect(glow_rect)
 
-        # Draw professional hover effect (JetBrains-style)
+        # Draw professional hover effect (Hi-Tech style)
         hover_opacity = self.hover_opacity.get(bar_id, 0.0)
-        if hover_opacity > 0.01:  # Only draw if there's visible hover effect
-            # Create subtle highlight overlay on the container
-            hover_alpha = int(25 * hover_opacity)  # Max 25 alpha for subtle effect
-            hover_color = QColor(100, 150, 255, hover_alpha)  # Soft blue highlight
+        if hover_opacity > 0.01:
+            # Create subtle cyan highlight overlay
+            hover_alpha = int(30 * hover_opacity)
+            hover_color = QColor(0, 150, 200, hover_alpha)
             
             # Draw hover background overlay
             painter.setBrush(hover_color)
@@ -3449,26 +3764,26 @@ class CylinderHeadTab(QWidget):
             painter.drawRect(container_rect)
             
             # Draw subtle border highlight
-            border_alpha = int(60 * hover_opacity)  # Max 60 alpha for border
-            border_color = QColor(120, 170, 255, border_alpha)  # Slightly brighter blue
-            border_width = max(1, int(1.5 * scale_factor))
+            border_alpha = int(80 * hover_opacity)
+            border_color = QColor(0, 170, 220, border_alpha)
+            border_width = max(2, int(2 * scale_factor))
             painter.setPen(QPen(border_color, border_width))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(container_rect)
 
-        # Draw label below bar using the configured label
-        painter.setPen(QColor(140, 160, 190))
-        label_font_size = max(7, int(9 * scale_factor))
-        painter.setFont(QFont("Inter", label_font_size, QFont.Medium))
+        # Draw label below bar with hi-tech styling
+        painter.setPen(QColor(120, 140, 160))
+        label_font_size = max(8, int(10 * scale_factor))
+        painter.setFont(QFont("Segoe UI", label_font_size, QFont.Normal))
         label_y_offset = max(12, int(15 * scale_factor))
         label_height = max(16, int(20 * scale_factor))
         painter.drawText(int(bar_x), scale_bottom + label_y_offset, bar_width, label_height, 
                         Qt.AlignCenter, bar_config['label'])
 
-        # Draw digital temperature display below label with color matching bar
+        # Draw digital temperature display with hi-tech monospace font
         painter.setPen(color)
-        temp_font_size = max(8, int(10 * scale_factor))
-        painter.setFont(QFont("JetBrains Mono", temp_font_size, QFont.Bold))
+        temp_font_size = max(9, int(11 * scale_factor))
+        painter.setFont(QFont("Consolas", temp_font_size, QFont.Bold))
         temp_y_offset = max(30, int(38 * scale_factor))
         temp_height = max(18, int(22 * scale_factor))
         temp_width_extra = max(12, int(15 * scale_factor))
@@ -8393,8 +8708,8 @@ class ModbusConfigDialog(QDialog):
         super().__init__(parent)
         self.group_name = group_name
         self.config = current_config.copy() if current_config else []
-        self.setWindowTitle(f"Configure {group_name} - Modbus Addresses")
-        self.setMinimumSize(750, 400)
+        self.setWindowTitle(f"Configure {group_name}")
+        self.setMinimumSize(600, 500) if group_name == "Voltage" else self.setMinimumSize(500, 400)
         self.setStyleSheet("""
             QDialog {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -8488,135 +8803,982 @@ class ModbusConfigDialog(QDialog):
             }
         """)
         
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Title
-        title = QLabel(f"⚙️ {group_name} Configuration")
-        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        title.setStyleSheet("color: rgb(100, 150, 200);")
-        layout.addWidget(title)
+        # Content area
+        content_widget = QWidget()
+        content_widget.setStyleSheet("background: transparent;")
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(32, 32, 32, 24)
+        content_layout.setSpacing(0)
         
-        # Info label
-        info = QLabel("Configure Modbus register addresses for each parameter:")
-        info.setStyleSheet("color: rgb(150, 170, 190); margin-bottom: 5px;")
-        layout.addWidget(info)
+        # Create form-based interface - all groups now get tabbed interface with regulation
+        if self.group_name == "Voltage":
+            self.create_voltage_form_interface(content_layout)
+        elif self.group_name == "Current":
+            self.create_current_form_interface(content_layout)
+        elif self.group_name == "Power":
+            self.create_power_form_interface(content_layout)
+        elif self.group_name == "Frequency":
+            self.create_frequency_form_interface(content_layout)
+        else:
+            self.create_simple_form_interface(content_layout)
         
-        # Address range info
-        range_info = QLabel(
-            "📋 Address Ranges: Input (30001-39999) | Holding (40001-49999) | Coil (1-9999) | Discrete (10001-19999)"
-        )
-        range_info.setStyleSheet("""
-            color: rgb(100, 180, 255);
-            background-color: rgba(58, 106, 255, 0.1);
-            border: 1px solid rgb(58, 106, 255);
-            border-radius: 3px;
-            padding: 8px;
-            margin-bottom: 10px;
-            font-size: 11px;
-        """)
-        range_info.setWordWrap(True)
-        layout.addWidget(range_info)
+        main_layout.addWidget(content_widget, 1)
         
-        # Create table
-        self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Label", "Register Type", "Address", "Device ID"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.table.setRowCount(len(self.config))
+        # Buttons
+        self.create_buttons(main_layout)
+    
+    def create_simple_form_interface(self, parent_layout):
+        """Create form-based interface for Current/Power groups"""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         
-        # Populate table with current configuration
-        for row, param in enumerate(self.config):
-            # Label
-            label_edit = QLineEdit(param.get("label", ""))
-            self.table.setCellWidget(row, 0, label_edit)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(20)
+        
+        # Store input widgets
+        self.param_widgets = []
+        
+        # Create form for each of the 3 parameters
+        for idx, param in enumerate(self.config):
+            # Create group box for each parameter
+            group = QGroupBox(f"{param.get('label', f'Parameter {idx+1}')}")
+            group.setStyleSheet("""
+                QGroupBox {
+                    color: rgb(200, 220, 240);
+                    border: 2px solid rgb(60, 75, 95);
+                    border-radius: 6px;
+                    margin-top: 12px;
+                    padding-top: 15px;
+                    font-weight: bold;
+                    background: rgba(35, 45, 60, 0.3);
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 5px 10px;
+                    color: rgb(100, 180, 255);
+                }
+            """)
+            
+            form_layout = QFormLayout(group)
+            form_layout.setSpacing(12)
+            form_layout.setContentsMargins(15, 20, 15, 15)
+            
+            # Label (editable)
+            label_input = QLineEdit(param.get("label", ""))
+            label_input.setPlaceholderText("Parameter label")
+            form_layout.addRow("Label:", label_input)
             
             # Register Type
             type_combo = QComboBox()
-            type_combo.addItems(["input", "holding", "coil", "discrete"])
-            current_type = param.get("type", "input")
-            type_combo.setCurrentText(current_type)
-            # Connect signal to update address when type changes
-            type_combo.currentTextChanged.connect(lambda text, r=row: self.update_address_for_type(r, text))
-            self.table.setCellWidget(row, 1, type_combo)
+            type_combo.addItems(["Input Register", "Holding Register", "Coil", "Discrete Input"])
+            type_map = {"input": 0, "holding": 1, "coil": 2, "discrete": 3}
+            type_combo.setCurrentIndex(type_map.get(param.get("type", "input"), 0))
+            form_layout.addRow("Register Type:", type_combo)
             
-            # Address - set appropriate placeholder based on type
-            addr_edit = QLineEdit(str(param.get("address", 30001)))
-            placeholder_map = {
-                "input": "e.g. 30001",
-                "holding": "e.g. 40001",
-                "coil": "e.g. 1",
-                "discrete": "e.g. 10001"
-            }
-            addr_edit.setPlaceholderText(placeholder_map.get(current_type, "e.g. 30001"))
-            self.table.setCellWidget(row, 2, addr_edit)
+            # Address
+            addr_input = QSpinBox()
+            addr_input.setRange(1, 65535)
+            addr_input.setValue(param.get("address", 30001))
+            addr_input.setSuffix("  ")
+            form_layout.addRow("Modbus Address:", addr_input)
             
             # Device ID
-            device_edit = QLineEdit(str(param.get("device_id", 5)))
-            device_edit.setPlaceholderText("e.g. 1")
-            self.table.setCellWidget(row, 3, device_edit)
+            device_input = QSpinBox()
+            device_input.setRange(1, 255)
+            device_input.setValue(param.get("device_id", 5))
+            form_layout.addRow("Device ID:", device_input)
+            
+            # Store widgets
+            self.param_widgets.append({
+                'label': label_input,
+                'type': type_combo,
+                'address': addr_input,
+                'device': device_input
+            })
+            
+            scroll_layout.addWidget(group)
         
-        layout.addWidget(self.table)
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        parent_layout.addWidget(scroll)
+    
+    def create_voltage_form_interface(self, parent_layout):
+        """Create form-based tabbed interface for Voltage"""
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background: transparent;
+                border-top: 2px solid rgba(75, 85, 99, 0.2);
+            }
+            QTabBar::tab {
+                background: transparent;
+                color: rgb(156, 163, 175);
+                padding: 12px 32px;
+                border: none;
+                border-bottom: 2px solid transparent;
+                margin-right: 0px;
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+                min-width: 120px;
+            }
+            QTabBar::tab:selected {
+                background: transparent;
+                color: rgb(96, 165, 250);
+                border-bottom: 2px solid rgb(59, 130, 246);
+                font-weight: 600;
+            }
+            QTabBar::tab:hover {
+                background: rgba(59, 130, 246, 0.05);
+                color: rgb(147, 197, 253);
+            }
+            /* Modern Input Controls */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                background: rgba(17, 24, 39, 0.6);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 8px 12px;
+                font-size: 13px;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 1px solid rgb(59, 130, 246);
+                background: rgba(17, 24, 39, 0.8);
+            }
+            QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
+                border: 1px solid rgba(96, 165, 250, 0.7);
+            }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                border-bottom: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background: rgba(75, 85, 99, 0.9);
+            }
+            QComboBox::drop-down {
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                background: rgba(55, 65, 81, 0.7);
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid rgb(156, 163, 175);
+                width: 0px;
+                height: 0px;
+                border-top-width: 5px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                margin-right: 3px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgb(31, 41, 55);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.7);
+                selection-background-color: rgb(59, 130, 246);
+                selection-color: white;
+                padding: 4px;
+            }
+        """)
         
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
+        # Tab 1: Data Source
+        data_tab = self.create_voltage_data_source_tab()
+        tab_widget.addTab(data_tab, "Data Source")
+        
+        # Tab 2: Regulation
+        regulation_tab = self.create_voltage_regulation_tab()
+        tab_widget.addTab(regulation_tab, "Regulation")
+        
+        parent_layout.addWidget(tab_widget)
+    
+    def create_voltage_data_source_tab(self):
+        """Create data source tab for voltage"""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(20)
+        
+        # Info
+        info = QLabel("Configure Modbus data source for reading voltage values")
+        info.setFont(QFont("Segoe UI", 11))
+        info.setStyleSheet("""
+            color: rgb(156, 163, 175);
+            background: transparent;
+            padding: 0px 0px 16px 0px;
+            border: none;
+        """)
+        tab_layout.addWidget(info)
+        
+        # Scroll area for form
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(15)
+        
+        self.voltage_data_widgets = []
+        
+        for idx, param in enumerate(self.config):
+            group = QGroupBox(param.get('label', f'Voltage {idx+1}'))
+            group.setStyleSheet("""
+                QGroupBox {
+                    color: rgb(200, 220, 240);
+                    border: 2px solid rgb(60, 75, 95);
+                    border-radius: 6px;
+                    margin-top: 12px;
+                    padding-top: 15px;
+                    font-weight: bold;
+                    background: rgba(35, 45, 60, 0.3);
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 5px 10px;
+                    color: rgb(100, 180, 255);
+                }
+            """)
+            
+            form = QFormLayout(group)
+            form.setSpacing(12)
+            form.setContentsMargins(15, 20, 15, 15)
+            
+            # Register Type
+            type_combo = QComboBox()
+            type_combo.addItems(["Input Register", "Holding Register"])
+            type_combo.setCurrentIndex(0 if param.get("type", "input") == "input" else 1)
+            form.addRow("Register Type:", type_combo)
+            
+            # Address
+            addr_input = QSpinBox()
+            addr_input.setRange(1, 65535)
+            addr_input.setValue(param.get("address", 30001))
+            form.addRow("Modbus Address:", addr_input)
+            
+            # Device ID
+            device_input = QSpinBox()
+            device_input.setRange(1, 255)
+            device_input.setValue(param.get("device_id", 5))
+            form.addRow("Device ID:", device_input)
+            
+            self.voltage_data_widgets.append({
+                'type': type_combo,
+                'address': addr_input,
+                'device': device_input
+            })
+            
+            scroll_layout.addWidget(group)
+        
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        tab_layout.addWidget(scroll)
+        
+        return tab
+    
+    def create_voltage_regulation_tab(self):
+        """Create regulation tab for voltage"""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(20)
+        
+        # Info
+        info = QLabel("Configure automatic regulation with set values and control coils")
+        info.setFont(QFont("Segoe UI", 11))
+        info.setStyleSheet("""
+            color: rgb(156, 163, 175);
+            background: transparent;
+            padding: 0px 0px 16px 0px;
+            border: none;
+        """)
+        tab_layout.addWidget(info)
+        
+        # Scroll area for form
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(15)
+        
+        self.voltage_regulation_widgets = []
+        
+        for idx, param in enumerate(self.config):
+            group = QGroupBox(param.get('label', f'Voltage {idx+1}'))
+            group.setStyleSheet("""
+                QGroupBox {
+                    color: rgb(200, 220, 240);
+                    border: 2px solid rgb(60, 75, 95);
+                    border-radius: 6px;
+                    margin-top: 12px;
+                    padding-top: 15px;
+                    font-weight: bold;
+                    background: rgba(35, 45, 60, 0.3);
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 5px 10px;
+                    color: rgb(245, 158, 11);
+                }
+            """)
+            
+            form = QFormLayout(group)
+            form.setSpacing(12)
+            form.setContentsMargins(15, 20, 15, 15)
+            
+            # Set Value
+            set_value_input = QDoubleSpinBox()
+            set_value_input.setRange(0, 1000)
+            set_value_input.setValue(param.get("set_value", 400))
+            set_value_input.setSuffix(" V")
+            set_value_input.setDecimals(1)
+            form.addRow("Set Value (Target):", set_value_input)
+            
+            # Upper Limit
+            upper_limit_input = QDoubleSpinBox()
+            upper_limit_input.setRange(0, 1000)
+            upper_limit_input.setValue(param.get("upper_limit", 450))
+            upper_limit_input.setSuffix(" V")
+            upper_limit_input.setDecimals(1)
+            form.addRow("Upper Limit:", upper_limit_input)
+            
+            # Lower Limit
+            lower_limit_input = QDoubleSpinBox()
+            lower_limit_input.setRange(0, 1000)
+            lower_limit_input.setValue(param.get("lower_limit", 350))
+            lower_limit_input.setSuffix(" V")
+            lower_limit_input.setDecimals(1)
+            form.addRow("Lower Limit:", lower_limit_input)
+            
+            # Alarm Coil
+            alarm_coil_input = QSpinBox()
+            alarm_coil_input.setRange(0, 9999)
+            alarm_coil_input.setValue(param.get("alarm_coil", 0))
+            alarm_coil_input.setSpecialValueText("Disabled")
+            form.addRow("Alarm Coil:", alarm_coil_input)
+            
+            # Relay Device ID
+            relay_device_input = QSpinBox()
+            relay_device_input.setRange(1, 255)
+            relay_device_input.setValue(param.get("relay_device_id", 5))
+            form.addRow("Relay Device ID:", relay_device_input)
+            
+            # Increase Coil
+            increase_coil_input = QSpinBox()
+            increase_coil_input.setRange(1, 9999)
+            increase_coil_input.setValue(param.get("increase_coil", 1))
+            form.addRow("Increase Coil:", increase_coil_input)
+            
+            # Decrease Coil
+            decrease_coil_input = QSpinBox()
+            decrease_coil_input.setRange(1, 9999)
+            decrease_coil_input.setValue(param.get("decrease_coil", 2))
+            form.addRow("Decrease Coil:", decrease_coil_input)
+            
+            self.voltage_regulation_widgets.append({
+                'set_value': set_value_input,
+                'upper_limit': upper_limit_input,
+                'lower_limit': lower_limit_input,
+                'alarm_coil': alarm_coil_input,
+                'relay_device_id': relay_device_input,
+                'increase_coil': increase_coil_input,
+                'decrease_coil': decrease_coil_input
+            })
+            
+            scroll_layout.addWidget(group)
+        
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        tab_layout.addWidget(scroll)
+        
+        return tab
+    
+    def create_current_form_interface(self, parent_layout):
+        """Create form-based tabbed interface for Current with regulation"""
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; border-top: 2px solid rgba(75, 85, 99, 0.2); }
+            QTabBar::tab { background: transparent; color: rgb(156, 163, 175); padding: 12px 32px; border: none; border-bottom: 2px solid transparent; margin-right: 0px; font-size: 13px; font-weight: 500; min-width: 120px; }
+            QTabBar::tab:selected { background: transparent; color: rgb(167, 139, 250); border-bottom: 2px solid rgb(139, 92, 246); font-weight: 600; }
+            QTabBar::tab:hover { background: rgba(139, 92, 246, 0.05); color: rgb(196, 181, 253); }
+            /* Modern Input Controls */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                background: rgba(17, 24, 39, 0.6);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 8px 12px;
+                font-size: 13px;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 1px solid rgb(139, 92, 246);
+                background: rgba(17, 24, 39, 0.8);
+            }
+            QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
+                border: 1px solid rgba(167, 139, 250, 0.7);
+            }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                border-bottom: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background: rgba(75, 85, 99, 0.9);
+            }
+            QComboBox::drop-down {
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                background: rgba(55, 65, 81, 0.7);
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid rgb(156, 163, 175);
+                width: 0px;
+                height: 0px;
+                border-top-width: 5px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                margin-right: 3px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgb(31, 41, 55);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.7);
+                selection-background-color: rgb(139, 92, 246);
+                selection-color: white;
+                padding: 4px;
+            }
+        """)
+        
+        data_tab = self.create_param_data_tab("Current", "rgba(139, 92, 246, 0.1)", "rgb(139, 92, 246)", "rgb(167, 139, 250)", 30004)
+        regulation_tab = self.create_param_regulation_tab("Current", 50, "A", 7)
+        
+        tab_widget.addTab(data_tab, "Data Source")
+        tab_widget.addTab(regulation_tab, "Regulation")
+        parent_layout.addWidget(tab_widget)
+    
+    def create_power_form_interface(self, parent_layout):
+        """Create form-based tabbed interface for Power with regulation for Active Power"""
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; border-top: 2px solid rgba(75, 85, 99, 0.2); }
+            QTabBar::tab { background: transparent; color: rgb(156, 163, 175); padding: 12px 32px; border: none; border-bottom: 2px solid transparent; margin-right: 0px; font-size: 13px; font-weight: 500; min-width: 120px; }
+            QTabBar::tab:selected { background: transparent; color: rgb(52, 211, 153); border-bottom: 2px solid rgb(16, 185, 129); font-weight: 600; }
+            QTabBar::tab:hover { background: rgba(16, 185, 129, 0.05); color: rgb(110, 231, 183); }
+            /* Modern Input Controls */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                background: rgba(17, 24, 39, 0.6);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 8px 12px;
+                font-size: 13px;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 1px solid rgb(16, 185, 129);
+                background: rgba(17, 24, 39, 0.8);
+            }
+            QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
+                border: 1px solid rgba(52, 211, 153, 0.7);
+            }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                border-bottom: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background: rgba(75, 85, 99, 0.9);
+            }
+            QComboBox::drop-down {
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                background: rgba(55, 65, 81, 0.7);
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid rgb(156, 163, 175);
+                width: 0px;
+                height: 0px;
+                border-top-width: 5px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                margin-right: 3px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgb(31, 41, 55);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.7);
+                selection-background-color: rgb(16, 185, 129);
+                selection-color: white;
+                padding: 4px;
+            }
+        """)
+        
+        data_tab = self.create_param_data_tab("Power", "rgba(16, 185, 129, 0.1)", "rgb(16, 185, 129)", "rgb(52, 211, 153)", 30007)
+        regulation_tab = self.create_power_regulation_tab_special()
+        
+        tab_widget.addTab(data_tab, "Data Source")
+        tab_widget.addTab(regulation_tab, "Regulation")
+        parent_layout.addWidget(tab_widget)
+    
+    def create_param_data_tab(self, param_type, info_bg, info_border, title_color, default_addr):
+        """Generic data source tab creator"""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(20)
+        
+        info = QLabel(f"Configure Modbus data source for reading {param_type.lower()} values")
+        info.setFont(QFont("Segoe UI", 11))
+        info.setStyleSheet("color: rgb(156, 163, 175); background: transparent; padding: 0px 0px 16px 0px; border: none;")
+        tab_layout.addWidget(info)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(15)
+        
+        widget_list = []
+        attr_name = f"{param_type.lower()}_data_widgets"
+        
+        for idx, param in enumerate(self.config):
+            group = QGroupBox(param.get('label', f'{param_type} {idx+1}'))
+            group.setStyleSheet(f"""
+                QGroupBox {{ color: rgb(200, 220, 240); border: 2px solid rgb(60, 75, 95); border-radius: 6px; margin-top: 12px; padding-top: 15px; font-weight: bold; background: rgba(35, 45, 60, 0.3); }}
+                QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; padding: 5px 10px; color: {title_color}; }}
+            """)
+            
+            form = QFormLayout(group)
+            form.setSpacing(12)
+            form.setContentsMargins(15, 20, 15, 15)
+            
+            type_combo = QComboBox()
+            type_combo.addItems(["Input Register", "Holding Register"])
+            type_combo.setCurrentIndex(0 if param.get("type", "input") == "input" else 1)
+            form.addRow("Register Type:", type_combo)
+            
+            addr_input = QSpinBox()
+            addr_input.setRange(1, 65535)
+            addr_input.setValue(param.get("address", default_addr + idx))
+            form.addRow("Modbus Address:", addr_input)
+            
+            device_input = QSpinBox()
+            device_input.setRange(1, 255)
+            device_input.setValue(param.get("device_id", 5))
+            form.addRow("Device ID:", device_input)
+            
+            widget_list.append({'type': type_combo, 'address': addr_input, 'device': device_input})
+            scroll_layout.addWidget(group)
+        
+        setattr(self, attr_name, widget_list)
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        tab_layout.addWidget(scroll)
+        return tab
+    
+    def create_param_regulation_tab(self, param_type, default_value, unit, default_coil_start):
+        """Generic regulation tab creator for Current"""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(20)
+        
+        info = QLabel(f"Configure automatic {param_type.lower()} regulation with set values and control coils")
+        info.setFont(QFont("Segoe UI", 11))
+        info.setStyleSheet("color: rgb(156, 163, 175); background: transparent; padding: 0px 0px 16px 0px; border: none;")
+        tab_layout.addWidget(info)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(15)
+        
+        widget_list = []
+        attr_name = f"{param_type.lower()}_regulation_widgets"
+        
+        for idx, param in enumerate(self.config):
+            group = QGroupBox(param.get('label', f'{param_type} {idx+1}'))
+            group.setStyleSheet("""
+                QGroupBox { color: rgb(200, 220, 240); border: 2px solid rgb(60, 75, 95); border-radius: 6px; margin-top: 12px; padding-top: 15px; font-weight: bold; background: rgba(35, 45, 60, 0.3); }
+                QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 5px 10px; color: rgb(245, 158, 11); }
+            """)
+            
+            form = QFormLayout(group)
+            form.setSpacing(12)
+            form.setContentsMargins(15, 20, 15, 15)
+            
+            set_value_input = QDoubleSpinBox()
+            set_value_input.setRange(0, 10000)
+            set_value_input.setValue(param.get("set_value", default_value))
+            set_value_input.setSuffix(f" {unit}")
+            set_value_input.setDecimals(1)
+            form.addRow("Set Value (Target):", set_value_input)
+            
+            # Upper Limit
+            upper_limit_input = QDoubleSpinBox()
+            upper_limit_input.setRange(0, 10000)
+            upper_limit_input.setValue(param.get("upper_limit", default_value * 1.5))
+            upper_limit_input.setSuffix(f" {unit}")
+            upper_limit_input.setDecimals(1)
+            form.addRow("Upper Limit:", upper_limit_input)
+            
+            # Lower Limit
+            lower_limit_input = QDoubleSpinBox()
+            lower_limit_input.setRange(0, 10000)
+            lower_limit_input.setValue(param.get("lower_limit", default_value * 0.5))
+            lower_limit_input.setSuffix(f" {unit}")
+            lower_limit_input.setDecimals(1)
+            form.addRow("Lower Limit:", lower_limit_input)
+            
+            # Alarm Coil
+            alarm_coil_input = QSpinBox()
+            alarm_coil_input.setRange(0, 9999)
+            alarm_coil_input.setValue(param.get("alarm_coil", 0))
+            alarm_coil_input.setSpecialValueText("Disabled")
+            form.addRow("Alarm Coil:", alarm_coil_input)
+            
+            # Relay Device ID
+            relay_device_input = QSpinBox()
+            relay_device_input.setRange(1, 255)
+            relay_device_input.setValue(param.get("relay_device_id", 5))
+            form.addRow("Relay Device ID:", relay_device_input)
+            
+            increase_coil_input = QSpinBox()
+            increase_coil_input.setRange(1, 9999)
+            increase_coil_input.setValue(param.get("increase_coil", default_coil_start + idx*2))
+            form.addRow("Increase Coil:", increase_coil_input)
+            
+            decrease_coil_input = QSpinBox()
+            decrease_coil_input.setRange(1, 9999)
+            decrease_coil_input.setValue(param.get("decrease_coil", default_coil_start + idx*2 + 1))
+            form.addRow("Decrease Coil:", decrease_coil_input)
+            
+            widget_list.append({
+                'set_value': set_value_input,
+                'upper_limit': upper_limit_input,
+                'lower_limit': lower_limit_input,
+                'alarm_coil': alarm_coil_input,
+                'relay_device_id': relay_device_input,
+                'increase_coil': increase_coil_input,
+                'decrease_coil': decrease_coil_input
+            })
+            scroll_layout.addWidget(group)
+        
+        setattr(self, attr_name, widget_list)
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        tab_layout.addWidget(scroll)
+        return tab
+    
+    def create_power_regulation_tab_special(self):
+        """Special regulation tab for Power - only Active Power gets regulation"""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(20)
+        
+        info = QLabel("Configure automatic regulation for Active Power only")
+        info.setFont(QFont("Segoe UI", 11))
+        info.setStyleSheet("color: rgb(156, 163, 175); background: transparent; padding: 0px 0px 16px 0px; border: none;")
+        tab_layout.addWidget(info)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(15)
+        
+        self.power_regulation_widgets = []
+        
+        for idx, param in enumerate(self.config):
+            label = param.get('label', '')
+            # Only Active Power (index 0 or contains "Active")
+            if idx == 0 or 'Active' in label:
+                group = QGroupBox(label)
+                group.setStyleSheet("""
+                    QGroupBox { color: rgb(200, 220, 240); border: 2px solid rgb(60, 75, 95); border-radius: 6px; margin-top: 12px; padding-top: 15px; font-weight: bold; background: rgba(35, 45, 60, 0.3); }
+                    QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 5px 10px; color: rgb(245, 158, 11); }
+                """)
+                
+                form = QFormLayout(group)
+                form.setSpacing(12)
+                form.setContentsMargins(15, 20, 15, 15)
+                
+                set_value_input = QDoubleSpinBox()
+                set_value_input.setRange(0, 10000)
+                set_value_input.setValue(param.get("set_value", 500))
+                set_value_input.setSuffix(" kW")
+                set_value_input.setDecimals(1)
+                form.addRow("Set Value (Target):", set_value_input)
+                
+                # Upper Limit
+                upper_limit_input = QDoubleSpinBox()
+                upper_limit_input.setRange(0, 10000)
+                upper_limit_input.setValue(param.get("upper_limit", 800))
+                upper_limit_input.setSuffix(" kW")
+                upper_limit_input.setDecimals(1)
+                form.addRow("Upper Limit:", upper_limit_input)
+                
+                # Lower Limit
+                lower_limit_input = QDoubleSpinBox()
+                lower_limit_input.setRange(0, 10000)
+                lower_limit_input.setValue(param.get("lower_limit", 100))
+                lower_limit_input.setSuffix(" kW")
+                lower_limit_input.setDecimals(1)
+                form.addRow("Lower Limit:", lower_limit_input)
+                
+                # Alarm Coil
+                alarm_coil_input = QSpinBox()
+                alarm_coil_input.setRange(0, 9999)
+                alarm_coil_input.setValue(param.get("alarm_coil", 0))
+                alarm_coil_input.setSpecialValueText("Disabled")
+                form.addRow("Alarm Coil:", alarm_coil_input)
+                
+                # Relay Device ID
+                relay_device_input = QSpinBox()
+                relay_device_input.setRange(1, 255)
+                relay_device_input.setValue(param.get("relay_device_id", 5))
+                form.addRow("Relay Device ID:", relay_device_input)
+                
+                increase_coil_input = QSpinBox()
+                increase_coil_input.setRange(1, 9999)
+                increase_coil_input.setValue(param.get("increase_coil", 13))
+                form.addRow("Increase Coil:", increase_coil_input)
+                
+                decrease_coil_input = QSpinBox()
+                decrease_coil_input.setRange(1, 9999)
+                decrease_coil_input.setValue(param.get("decrease_coil", 14))
+                form.addRow("Decrease Coil:", decrease_coil_input)
+                
+                self.power_regulation_widgets.append({
+                    'set_value': set_value_input,
+                    'upper_limit': upper_limit_input,
+                    'lower_limit': lower_limit_input,
+                    'alarm_coil': alarm_coil_input,
+                    'relay_device_id': relay_device_input,
+                    'increase_coil': increase_coil_input,
+                    'decrease_coil': decrease_coil_input
+                })
+                scroll_layout.addWidget(group)
+            else:
+                self.power_regulation_widgets.append(None)
+        
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        tab_layout.addWidget(scroll)
+        return tab
+    
+    def create_frequency_form_interface(self, parent_layout):
+        """Create form-based tabbed interface for Frequency with regulation"""
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; border-top: 2px solid rgba(75, 85, 99, 0.2); }
+            QTabBar::tab { background: transparent; color: rgb(156, 163, 175); padding: 12px 32px; border: none; border-bottom: 2px solid transparent; margin-right: 0px; font-size: 13px; font-weight: 500; min-width: 120px; }
+            QTabBar::tab:selected { background: transparent; color: rgb(252, 211, 77); border-bottom: 2px solid rgb(251, 191, 36); font-weight: 600; }
+            QTabBar::tab:hover { background: rgba(251, 191, 36, 0.05); color: rgb(253, 224, 71); }
+            /* Modern Input Controls */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                background: rgba(17, 24, 39, 0.6);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 8px 12px;
+                font-size: 13px;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 1px solid rgb(251, 191, 36);
+                background: rgba(17, 24, 39, 0.8);
+            }
+            QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
+                border: 1px solid rgba(252, 211, 77, 0.7);
+            }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                border-bottom: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                background: rgba(55, 65, 81, 0.7);
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                width: 18px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background: rgba(75, 85, 99, 0.9);
+            }
+            QComboBox::drop-down {
+                border-left: 1px solid rgba(75, 85, 99, 0.5);
+                background: rgba(55, 65, 81, 0.7);
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid rgb(156, 163, 175);
+                width: 0px;
+                height: 0px;
+                border-top-width: 5px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                margin-right: 3px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgb(31, 41, 55);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(75, 85, 99, 0.7);
+                selection-background-color: rgb(251, 191, 36);
+                selection-color: white;
+                padding: 4px;
+            }
+        """)
+        
+        data_tab = self.create_param_data_tab("Frequency", "rgba(251, 191, 36, 0.1)", "rgb(251, 191, 36)", "rgb(252, 211, 77)", 30010)
+        regulation_tab = self.create_param_regulation_tab("Frequency", 50.0, "Hz", 15)
+        
+        tab_widget.addTab(data_tab, "Data Source")
+        tab_widget.addTab(regulation_tab, "Regulation")
+        parent_layout.addWidget(tab_widget)
+    
+    def create_buttons(self, parent_layout):
+        """Create dialog buttons with modern styling"""
+        # Footer bar
+        footer = QWidget()
+        footer.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(20, 30, 45, 0.98), stop:1 rgba(15, 20, 35, 0.99));
+                border-top: 1px solid rgba(75, 85, 99, 0.3);
+            }
+        """)
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(32, 20, 32, 20)
+        footer_layout.setSpacing(12)
         
         # Reset to defaults button
-        reset_btn = QPushButton("Reset to Defaults")
-        reset_btn.setObjectName("resetBtn")
+        reset_btn = QPushButton("Reset")
+        reset_btn.setMinimumHeight(36)
+        reset_btn.setMinimumWidth(90)
+        reset_btn.setCursor(Qt.PointingHandCursor)
+        reset_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: rgb(156, 163, 175);
+                border: 1px solid rgba(75, 85, 99, 0.6);
+                border-radius: 0px;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 0px 20px;
+            }
+            QPushButton:hover {
+                background: rgba(75, 85, 99, 0.2);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(96, 165, 250, 0.6);
+            }
+            QPushButton:pressed {
+                background: rgba(75, 85, 99, 0.3);
+                border: 1px solid rgba(96, 165, 250, 0.8);
+            }
+        """)
         reset_btn.clicked.connect(self.reset_to_defaults)
-        button_layout.addWidget(reset_btn)
+        footer_layout.addWidget(reset_btn)
         
-        button_layout.addStretch()
+        footer_layout.addStretch()
         
         # Cancel button
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setObjectName("cancelBtn")
+        cancel_btn.setMinimumHeight(36)
+        cancel_btn.setMinimumWidth(90)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: rgb(156, 163, 175);
+                border: 1px solid rgba(75, 85, 99, 0.6);
+                border-radius: 0px;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 0px 20px;
+            }
+            QPushButton:hover {
+                background: rgba(75, 85, 99, 0.2);
+                color: rgb(229, 231, 235);
+                border: 1px solid rgba(96, 165, 250, 0.6);
+            }
+            QPushButton:pressed {
+                background: rgba(75, 85, 99, 0.3);
+                border: 1px solid rgba(96, 165, 250, 0.8);
+            }
+        """)
         cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
+        footer_layout.addWidget(cancel_btn)
         
-        # Save button
-        save_btn = QPushButton("Save Configuration")
+        # Save button - Primary accent
+        save_btn = QPushButton("Save")
+        save_btn.setMinimumHeight(36)
+        save_btn.setMinimumWidth(90)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(59, 130, 246);
+                color: white;
+                border: 1px solid rgba(96, 165, 250, 0.4);
+                border-radius: 0px;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 0px 24px;
+            }
+            QPushButton:hover {
+                background: rgb(37, 99, 235);
+                border: 1px solid rgba(147, 197, 253, 0.5);
+            }
+            QPushButton:pressed {
+                background: rgb(29, 78, 216);
+                border: 1px solid rgba(147, 197, 253, 0.7);
+            }
+        """)
         save_btn.clicked.connect(self.save_config)
-        button_layout.addWidget(save_btn)
+        footer_layout.addWidget(save_btn)
         
-        layout.addLayout(button_layout)
-    
-    def update_address_for_type(self, row, register_type):
-        """Update address field when register type changes"""
-        # Get current address widget
-        addr_widget = self.table.cellWidget(row, 2)
-        if not addr_widget:
-            return
-        
-        # Get current address value
-        try:
-            current_addr = int(addr_widget.text())
-        except ValueError:
-            current_addr = None
-        
-        # Determine base address and range for the selected type
-        type_ranges = {
-            "input": (30001, 39999, "e.g. 30001"),
-            "holding": (40001, 49999, "e.g. 40001"),
-            "coil": (1, 9999, "e.g. 1"),
-            "discrete": (10001, 19999, "e.g. 10001")
-        }
-        
-        if register_type in type_ranges:
-            base_addr, max_addr, placeholder = type_ranges[register_type]
-            
-            # If current address is not in the new range, update it to the base address
-            if current_addr is None or current_addr < base_addr or current_addr > max_addr:
-                addr_widget.setText(str(base_addr))
-            
-            # Update placeholder text
-            addr_widget.setPlaceholderText(placeholder)
+        parent_layout.addWidget(footer)
     
     def reset_to_defaults(self):
         """Reset configuration to default values"""
@@ -8626,76 +9788,280 @@ class ModbusConfigDialog(QDialog):
         if reply == QMessageBox.Yes:
             defaults = self.get_default_config(self.group_name)
             self.config = defaults
-            # Repopulate table
-            for row, param in enumerate(self.config):
-                self.table.cellWidget(row, 0).setText(param.get("label", ""))
-                self.table.cellWidget(row, 1).setCurrentText(param.get("type", "input"))
-                self.table.cellWidget(row, 2).setText(str(param.get("address", 30001)))
-                self.table.cellWidget(row, 3).setText(str(param.get("device_id", 5)))
+            
+            # Repopulate forms based on group
+            if self.group_name == "Voltage":
+                # Repopulate voltage forms
+                for idx, (param, data_widgets, reg_widgets) in enumerate(
+                    zip(self.config, self.voltage_data_widgets, self.voltage_regulation_widgets)
+                ):
+                    type_idx = 0 if param.get("type", "input") == "input" else 1
+                    data_widgets['type'].setCurrentIndex(type_idx)
+                    data_widgets['address'].setValue(param.get("address", 30001))
+                    data_widgets['device'].setValue(param.get("device_id", 5))
+                    reg_widgets['set_value'].setValue(param.get("set_value", 400))
+                    reg_widgets['upper_limit'].setValue(param.get("upper_limit", 450))
+                    reg_widgets['lower_limit'].setValue(param.get("lower_limit", 350))
+                    reg_widgets['alarm_coil'].setValue(param.get("alarm_coil", 0))
+                    reg_widgets['relay_device_id'].setValue(param.get("relay_device_id", 5))
+                    reg_widgets['increase_coil'].setValue(param.get("increase_coil", 1))
+                    reg_widgets['decrease_coil'].setValue(param.get("decrease_coil", 2))
+            elif self.group_name == "Current":
+                # Repopulate current forms
+                for idx, (param, data_widgets, reg_widgets) in enumerate(
+                    zip(self.config, self.current_data_widgets, self.current_regulation_widgets)
+                ):
+                    type_idx = 0 if param.get("type", "input") == "input" else 1
+                    data_widgets['type'].setCurrentIndex(type_idx)
+                    data_widgets['address'].setValue(param.get("address", 30004))
+                    data_widgets['device'].setValue(param.get("device_id", 5))
+                    reg_widgets['set_value'].setValue(param.get("set_value", 50))
+                    reg_widgets['upper_limit'].setValue(param.get("upper_limit", 75))
+                    reg_widgets['lower_limit'].setValue(param.get("lower_limit", 25))
+                    reg_widgets['alarm_coil'].setValue(param.get("alarm_coil", 0))
+                    reg_widgets['relay_device_id'].setValue(param.get("relay_device_id", 5))
+                    reg_widgets['increase_coil'].setValue(param.get("increase_coil", 7))
+                    reg_widgets['decrease_coil'].setValue(param.get("decrease_coil", 8))
+            elif self.group_name == "Power":
+                # Repopulate power forms
+                for idx, (param, data_widgets, reg_widgets) in enumerate(
+                    zip(self.config, self.power_data_widgets, self.power_regulation_widgets)
+                ):
+                    type_idx = 0 if param.get("type", "input") == "input" else 1
+                    data_widgets['type'].setCurrentIndex(type_idx)
+                    data_widgets['address'].setValue(param.get("address", 30007))
+                    data_widgets['device'].setValue(param.get("device_id", 5))
+                    if reg_widgets:  # Only Active Power has regulation
+                        reg_widgets['set_value'].setValue(param.get("set_value", 500))
+                        reg_widgets['upper_limit'].setValue(param.get("upper_limit", 800))
+                        reg_widgets['lower_limit'].setValue(param.get("lower_limit", 100))
+                        reg_widgets['alarm_coil'].setValue(param.get("alarm_coil", 0))
+                        reg_widgets['relay_device_id'].setValue(param.get("relay_device_id", 5))
+                        reg_widgets['increase_coil'].setValue(param.get("increase_coil", 13))
+                        reg_widgets['decrease_coil'].setValue(param.get("decrease_coil", 14))
+            elif self.group_name == "Frequency":
+                # Repopulate frequency forms
+                for idx, (param, data_widgets, reg_widgets) in enumerate(
+                    zip(self.config, self.frequency_data_widgets, self.frequency_regulation_widgets)
+                ):
+                    type_idx = 0 if param.get("type", "input") == "input" else 1
+                    data_widgets['type'].setCurrentIndex(type_idx)
+                    data_widgets['address'].setValue(param.get("address", 30010))
+                    data_widgets['device'].setValue(param.get("device_id", 5))
+                    reg_widgets['set_value'].setValue(param.get("set_value", 50.0))
+                    reg_widgets['upper_limit'].setValue(param.get("upper_limit", 55.0))
+                    reg_widgets['lower_limit'].setValue(param.get("lower_limit", 45.0))
+                    reg_widgets['alarm_coil'].setValue(param.get("alarm_coil", 0))
+                    reg_widgets['relay_device_id'].setValue(param.get("relay_device_id", 5))
+                    reg_widgets['increase_coil'].setValue(param.get("increase_coil", 15))
+                    reg_widgets['decrease_coil'].setValue(param.get("decrease_coil", 16))
+            else:
+                # Repopulate simple forms (shouldn't reach here anymore)
+                for idx, (param, widgets) in enumerate(zip(self.config, self.param_widgets)):
+                    widgets['label'].setText(param.get("label", ""))
+                    type_map = {"input": 0, "holding": 1, "coil": 2, "discrete": 3}
+                    widgets['type'].setCurrentIndex(type_map.get(param.get("type", "input"), 0))
+                    widgets['address'].setValue(param.get("address", 30001))
+                    widgets['device'].setValue(param.get("device_id", 5))
+            
             QMessageBox.information(self, "Reset Complete", "Configuration reset to defaults.")
     
     def get_default_config(self, group_name):
         """Get default configuration for a group"""
         if group_name == "Voltage":
             return [
-                {"label": "L1-L2 Voltage", "type": "input", "address": 30001, "device_id": 5},
-                {"label": "L2-L3 Voltage", "type": "input", "address": 30002, "device_id": 5},
-                {"label": "L3-L1 Voltage", "type": "input", "address": 30003, "device_id": 5}
+                {"label": "L1-L2 Voltage", "type": "input", "address": 30001, "device_id": 5,
+                 "set_value": 400, "upper_limit": 450, "lower_limit": 350, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 1, "decrease_coil": 2},
+                {"label": "L2-L3 Voltage", "type": "input", "address": 30002, "device_id": 5,
+                 "set_value": 400, "upper_limit": 450, "lower_limit": 350, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 3, "decrease_coil": 4},
+                {"label": "L3-L1 Voltage", "type": "input", "address": 30003, "device_id": 5,
+                 "set_value": 400, "upper_limit": 450, "lower_limit": 350, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 5, "decrease_coil": 6}
             ]
         elif group_name == "Current":
             return [
-                {"label": "L1", "type": "input", "address": 30004, "device_id": 5},
-                {"label": "L2", "type": "input", "address": 30005, "device_id": 5},
-                {"label": "L3", "type": "input", "address": 30006, "device_id": 5}
+                {"label": "L1", "type": "input", "address": 30004, "device_id": 5,
+                 "set_value": 50, "upper_limit": 75, "lower_limit": 25, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 7, "decrease_coil": 8},
+                {"label": "L2", "type": "input", "address": 30005, "device_id": 5,
+                 "set_value": 50, "upper_limit": 75, "lower_limit": 25, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 9, "decrease_coil": 10},
+                {"label": "L3", "type": "input", "address": 30006, "device_id": 5,
+                 "set_value": 50, "upper_limit": 75, "lower_limit": 25, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 11, "decrease_coil": 12}
             ]
         elif group_name == "Power":
             return [
-                {"label": "Active Power", "type": "input", "address": 30007, "device_id": 5},
+                {"label": "Active Power", "type": "input", "address": 30007, "device_id": 5,
+                 "set_value": 500, "upper_limit": 800, "lower_limit": 100, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 13, "decrease_coil": 14},
                 {"label": "Power Factor", "type": "input", "address": 30008, "device_id": 5},
                 {"label": "Reactive Power", "type": "input", "address": 30009, "device_id": 5}
+            ]
+        elif group_name == "Frequency":
+            return [
+                {"label": "Frequency", "type": "input", "address": 30010, "device_id": 5,
+                 "set_value": 50.0, "upper_limit": 55.0, "lower_limit": 45.0, "alarm_coil": 0, "relay_device_id": 5,
+                 "increase_coil": 15, "decrease_coil": 16}
             ]
         return []
     
     def save_config(self):
-        """Validate and save configuration"""
+        """Validate and save configuration from form widgets"""
         new_config = []
         
-        for row in range(self.table.rowCount()):
-            label = self.table.cellWidget(row, 0).text()
-            reg_type = self.table.cellWidget(row, 1).currentText()
-            address_text = self.table.cellWidget(row, 2).text()
-            device_text = self.table.cellWidget(row, 3).text()
-            
-            # Validate address
-            try:
-                address = int(address_text)
-                if address < 1 or address > 65535:
-                    QMessageBox.warning(self, "Invalid Address",
-                                      f"Address for '{label}' must be between 1 and 65535.")
+        if self.group_name == "Voltage":
+            # Read from voltage form widgets
+            for idx, (orig_param, data_widgets, reg_widgets) in enumerate(
+                zip(self.config, self.voltage_data_widgets, self.voltage_regulation_widgets)
+            ):
+                label = orig_param.get("label", f"Voltage {idx+1}")
+                
+                # Data source
+                type_map = ["input", "holding"]
+                reg_type = type_map[data_widgets['type'].currentIndex()]
+                address = data_widgets['address'].value()
+                device_id = data_widgets['device'].value()
+                
+                # Regulation
+                set_value = reg_widgets['set_value'].value()
+                upper_limit = reg_widgets['upper_limit'].value()
+                lower_limit = reg_widgets['lower_limit'].value()
+                alarm_coil = reg_widgets['alarm_coil'].value()
+                relay_device_id = reg_widgets['relay_device_id'].value()
+                increase_coil = reg_widgets['increase_coil'].value()
+                decrease_coil = reg_widgets['decrease_coil'].value()
+                
+                new_config.append({
+                    "label": label,
+                    "type": reg_type,
+                    "address": address,
+                    "device_id": device_id,
+                    "set_value": set_value,
+                    "upper_limit": upper_limit,
+                    "lower_limit": lower_limit,
+                    "alarm_coil": alarm_coil,
+                    "relay_device_id": relay_device_id,
+                    "increase_coil": increase_coil,
+                    "decrease_coil": decrease_coil
+                })
+        elif self.group_name == "Current":
+            # Read from current form widgets
+            for idx, (orig_param, data_widgets, reg_widgets) in enumerate(
+                zip(self.config, self.current_data_widgets, self.current_regulation_widgets)
+            ):
+                label = orig_param.get("label", f"Current {idx+1}")
+                
+                type_map = ["input", "holding"]
+                reg_type = type_map[data_widgets['type'].currentIndex()]
+                address = data_widgets['address'].value()
+                device_id = data_widgets['device'].value()
+                
+                set_value = reg_widgets['set_value'].value()
+                upper_limit = reg_widgets['upper_limit'].value()
+                lower_limit = reg_widgets['lower_limit'].value()
+                alarm_coil = reg_widgets['alarm_coil'].value()
+                relay_device_id = reg_widgets['relay_device_id'].value()
+                increase_coil = reg_widgets['increase_coil'].value()
+                decrease_coil = reg_widgets['decrease_coil'].value()
+                
+                new_config.append({
+                    "label": label,
+                    "type": reg_type,
+                    "address": address,
+                    "device_id": device_id,
+                    "set_value": set_value,
+                    "upper_limit": upper_limit,
+                    "lower_limit": lower_limit,
+                    "alarm_coil": alarm_coil,
+                    "relay_device_id": relay_device_id,
+                    "increase_coil": increase_coil,
+                    "decrease_coil": decrease_coil
+                })
+        elif self.group_name == "Power":
+            # Read from power form widgets
+            for idx, (orig_param, data_widgets, reg_widgets) in enumerate(
+                zip(self.config, self.power_data_widgets, self.power_regulation_widgets)
+            ):
+                label = orig_param.get("label", f"Power {idx+1}")
+                
+                type_map = ["input", "holding"]
+                reg_type = type_map[data_widgets['type'].currentIndex()]
+                address = data_widgets['address'].value()
+                device_id = data_widgets['device'].value()
+                
+                param_config = {
+                    "label": label,
+                    "type": reg_type,
+                    "address": address,
+                    "device_id": device_id
+                }
+                
+                # Only Active Power has regulation
+                if reg_widgets:
+                    param_config["set_value"] = reg_widgets['set_value'].value()
+                    param_config["upper_limit"] = reg_widgets['upper_limit'].value()
+                    param_config["lower_limit"] = reg_widgets['lower_limit'].value()
+                    param_config["alarm_coil"] = reg_widgets['alarm_coil'].value()
+                    param_config["relay_device_id"] = reg_widgets['relay_device_id'].value()
+                    param_config["increase_coil"] = reg_widgets['increase_coil'].value()
+                    param_config["decrease_coil"] = reg_widgets['decrease_coil'].value()
+                
+                new_config.append(param_config)
+        elif self.group_name == "Frequency":
+            # Read from frequency form widgets
+            for idx, (orig_param, data_widgets, reg_widgets) in enumerate(
+                zip(self.config, self.frequency_data_widgets, self.frequency_regulation_widgets)
+            ):
+                label = orig_param.get("label", "Frequency")
+                
+                type_map = ["input", "holding"]
+                reg_type = type_map[data_widgets['type'].currentIndex()]
+                address = data_widgets['address'].value()
+                device_id = data_widgets['device'].value()
+                
+                set_value = reg_widgets['set_value'].value()
+                upper_limit = reg_widgets['upper_limit'].value()
+                lower_limit = reg_widgets['lower_limit'].value()
+                alarm_coil = reg_widgets['alarm_coil'].value()
+                relay_device_id = reg_widgets['relay_device_id'].value()
+                increase_coil = reg_widgets['increase_coil'].value()
+                decrease_coil = reg_widgets['decrease_coil'].value()
+                
+                new_config.append({
+                    "label": label,
+                    "type": reg_type,
+                    "address": address,
+                    "device_id": device_id,
+                    "set_value": set_value,
+                    "upper_limit": upper_limit,
+                    "lower_limit": lower_limit,
+                    "alarm_coil": alarm_coil,
+                    "relay_device_id": relay_device_id,
+                    "increase_coil": increase_coil,
+                    "decrease_coil": decrease_coil
+                })
+        else:
+            # Read from simple form widgets (shouldn't reach here anymore)
+            for idx, widgets in enumerate(self.param_widgets):
+                label = widgets['label'].text().strip()
+                if not label:
+                    QMessageBox.warning(self, "Missing Label", f"Please enter a label for parameter {idx+1}.")
                     return
-            except ValueError:
-                QMessageBox.warning(self, "Invalid Address",
-                                  f"Address for '{label}' must be a valid number.")
-                return
-            
-            # Validate device ID
-            try:
-                device_id = int(device_text)
-                if device_id < 1 or device_id > 255:
-                    QMessageBox.warning(self, "Invalid Device ID",
-                                      f"Device ID for '{label}' must be between 1 and 255.")
-                    return
-            except ValueError:
-                QMessageBox.warning(self, "Invalid Device ID",
-                                  f"Device ID for '{label}' must be a valid number.")
-                return
-            
-            new_config.append({
-                "label": label,
-                "type": reg_type,
-                "address": address,
-                "device_id": device_id
-            })
+                
+                type_map = ["input", "holding", "coil", "discrete"]
+                reg_type = type_map[widgets['type'].currentIndex()]
+                address = widgets['address'].value()
+                device_id = widgets['device'].value()
+                
+                new_config.append({
+                    "label": label,
+                    "type": reg_type,
+                    "address": address,
+                    "device_id": device_id
+                })
         
         self.config = new_config
         self.accept()
@@ -9378,289 +10744,241 @@ class ElectricalParameterTab(QWidget):
         # Load configuration
         self.load_config()
         
-        # Create main layout
+        # Create main layout - No scrolling, everything fits
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(15, 20, 15, 15)
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(40, 32, 40, 32)
+        main_layout.setSpacing(0)
+        
+        # Header section
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(16)
         
         # Title
-        title = QLabel("ELECTRICAL PARAMETERS")
-        title.setFont(QFont("Inter", 18, QFont.Bold))
-        title.setStyleSheet("color: rgb(255, 255, 255);")
-        title.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title)
-        
-        # Create scroll area for content
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
-            QScrollBar:vertical {
-                background: #161b22;
-                width: 12px;
-                border: 1px solid #30363d;
-            }
-            QScrollBar::handle:vertical {
-                background: #58a6ff;
-                border: 1px solid #1f6feb;
-                min-height: 30px;
-            }
+        title = QLabel("Electrical Parameters")
+        title.setFont(QFont("Segoe UI", 15, QFont.DemiBold))
+        title.setStyleSheet("""
+            color: rgb(229, 231, 235);
+            letter-spacing: 0.01em;
+            background: transparent;
         """)
+        header_layout.addWidget(title)
+        header_layout.addStretch()
         
-        # Content widget
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(20)
-        content_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # === 3-PHASE VOLTAGE SECTION ===
-        voltage_section_layout = QVBoxLayout()
-        
-        # Voltage header with gear button
-        voltage_header = QHBoxLayout()
-        voltage_title = QLabel("3-PHASE VOLTAGE")
-        voltage_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        voltage_title.setStyleSheet("color: rgb(100, 150, 200);")
-        voltage_header.addWidget(voltage_title)
-        voltage_header.addStretch()
-        
-        voltage_gear_btn = QPushButton("⚙️")
-        voltage_gear_btn.setFixedSize(32, 32)
-        voltage_gear_btn.setCursor(Qt.PointingHandCursor)
-        voltage_gear_btn.setStyleSheet("""
+        # Settings button
+        settings_btn = QPushButton("CONFIGURE")
+        settings_btn.setMinimumHeight(32)
+        settings_btn.setFixedWidth(110)
+        settings_btn.setCursor(Qt.PointingHandCursor)
+        settings_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(58, 106, 255), stop:1 rgb(38, 76, 200));
-                color: white;
-                border: 1px solid rgb(100, 150, 255);
-                border-radius: 5px;
-                font-size: 16px;
+                background: rgba(59, 130, 246, 0.1);
+                color: rgb(147, 197, 253);
+                border: 1px solid rgba(59, 130, 246, 0.3);
+                border-radius: 0px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                padding: 6px 16px;
+                text-transform: uppercase;
+                outline: none;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(78, 126, 255), stop:1 rgb(58, 96, 220));
+                background: rgba(59, 130, 246, 0.15);
+                border: 1px solid rgba(59, 130, 246, 0.5);
             }
         """)
-        voltage_gear_btn.clicked.connect(lambda: self.open_settings('Voltage'))
-        voltage_header.addWidget(voltage_gear_btn)
-        voltage_section_layout.addLayout(voltage_header)
+        settings_btn.clicked.connect(self.show_configuration_menu)
+        header_layout.addWidget(settings_btn)
         
-        voltage_section = QGroupBox()
-        voltage_section.setStyleSheet("""
-            QGroupBox {
-                border: 1px solid rgb(70, 90, 120);
-                border-radius: 0px;
-                margin-top: 5px;
-                padding-top: 10px;
-            }
-        """)
+        main_layout.addLayout(header_layout)
+        main_layout.addSpacing(28)
         
-        voltage_layout = QHBoxLayout(voltage_section)
-        voltage_layout.setSpacing(15)
-        voltage_layout.setContentsMargins(15, 15, 15, 15)
+        # Content - 3x3 Grid Layout
+        content_layout = QGridLayout()
+        content_layout.setSpacing(24)
+        content_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Create voltage displays
+        # Grid: Row 1 - Voltage, Row 2 - Current, Row 3 - Active Power, PF/Reactive (split), Frequency
+        # Create minimal card-style displays with per-parameter linkage
         self.voltage_displays = []
-        voltage_configs = [
-            ("L1-L2 Voltage", "L1", "L2"),
-            ("L2-L3 Voltage", "L2", "L3"),
-            ("L3-L1 Voltage", "L3", "L1")
-        ]
-        
-        for label, phase_from, phase_to in voltage_configs:
-            display = ModernVoltageDisplay(label, phase_from, phase_to, max_value=500)
-            self.voltage_displays.append(display)
-            voltage_layout.addWidget(display)
-        
-        # Configuration warning label for voltage
-        self.voltage_warning = QLabel("⚠️ No Configuration Set - Click the gear icon to configure Modbus addresses")
-        self.voltage_warning.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 180, 0, 0.2);
-                color: rgb(255, 200, 100);
-                border: 2px dashed rgb(255, 180, 0);
-                border-radius: 5px;
-                padding: 15px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-        """)
-        self.voltage_warning.setAlignment(Qt.AlignCenter)
-        voltage_section_layout.addWidget(voltage_section)
-        voltage_section_layout.addWidget(self.voltage_warning)
-        content_layout.addLayout(voltage_section_layout)
-        
-        # === AMPERAGE SECTION ===
-        amperage_section_layout = QVBoxLayout()
-        
-        # Amperage header with gear button
-        amperage_header = QHBoxLayout()
-        amperage_title = QLabel("AMPERAGE PER PHASE")
-        amperage_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        amperage_title.setStyleSheet("color: rgb(100, 150, 200);")
-        amperage_header.addWidget(amperage_title)
-        amperage_header.addStretch()
-        
-        amperage_gear_btn = QPushButton("⚙️")
-        amperage_gear_btn.setFixedSize(32, 32)
-        amperage_gear_btn.setCursor(Qt.PointingHandCursor)
-        amperage_gear_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(58, 106, 255), stop:1 rgb(38, 76, 200));
-                color: white;
-                border: 1px solid rgb(100, 150, 255);
-                border-radius: 5px;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(78, 126, 255), stop:1 rgb(58, 96, 220));
-            }
-        """)
-        amperage_gear_btn.clicked.connect(lambda: self.open_settings('Current'))
-        amperage_header.addWidget(amperage_gear_btn)
-        amperage_section_layout.addLayout(amperage_header)
-        
-        amperage_section = QGroupBox()
-        amperage_section.setStyleSheet("""
-            QGroupBox {
-                border: 1px solid rgb(70, 90, 120);
-                border-radius: 0px;
-                margin-top: 5px;
-                padding-top: 10px;
-            }
-        """)
-        
-        amperage_layout = QHBoxLayout(amperage_section)
-        amperage_layout.setSpacing(15)
-        amperage_layout.setContentsMargins(15, 15, 15, 15)
-        
-        # Create amperage displays
         self.amperage_displays = []
-        amperage_configs = [
-            ("L1", "L1", "L2"),
-            ("L2", "L2", "L3"),
-            ("L3", "L3", "L1")
-        ]
-        
-        for label, phase_from, phase_to in amperage_configs:
-            display = ModernCurrentDisplay(label, phase_from, phase_to, max_value=100)
-            self.amperage_displays.append(display)
-            amperage_layout.addWidget(display)
-        
-        # Configuration warning label for current
-        self.current_warning = QLabel("⚠️ No Configuration Set - Click the gear icon to configure Modbus addresses")
-        self.current_warning.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 180, 0, 0.2);
-                color: rgb(255, 200, 100);
-                border: 2px dashed rgb(255, 180, 0);
-                border-radius: 5px;
-                padding: 15px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-        """)
-        self.current_warning.setAlignment(Qt.AlignCenter)
-        amperage_section_layout.addWidget(amperage_section)
-        amperage_section_layout.addWidget(self.current_warning)
-        content_layout.addLayout(amperage_section_layout)
-        
-        # === POWER PARAMETERS SECTION ===
-        power_section_layout = QVBoxLayout()
-        
-        # Power header with gear button
-        power_header = QHBoxLayout()
-        power_title = QLabel("POWER PARAMETERS")
-        power_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        power_title.setStyleSheet("color: rgb(100, 150, 200);")
-        power_header.addWidget(power_title)
-        power_header.addStretch()
-        
-        power_gear_btn = QPushButton("⚙️")
-        power_gear_btn.setFixedSize(32, 32)
-        power_gear_btn.setCursor(Qt.PointingHandCursor)
-        power_gear_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(58, 106, 255), stop:1 rgb(38, 76, 200));
-                color: white;
-                border: 1px solid rgb(100, 150, 255);
-                border-radius: 5px;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(78, 126, 255), stop:1 rgb(58, 96, 220));
-            }
-        """)
-        power_gear_btn.clicked.connect(lambda: self.open_settings('Power'))
-        power_header.addWidget(power_gear_btn)
-        power_section_layout.addLayout(power_header)
-        
-        power_section = QGroupBox()
-        power_section.setStyleSheet("""
-            QGroupBox {
-                border: 1px solid rgb(70, 90, 120);
-                border-radius: 0px;
-                margin-top: 5px;
-                padding-top: 10px;
-            }
-        """)
-        
-        power_layout = QHBoxLayout(power_section)
-        power_layout.setSpacing(20)
-        power_layout.setContentsMargins(15, 15, 15, 15)
-        
-        # Create power displays
         self.power_displays = []
-        power_configs = [
-            ("Active Power", "kW", 1000, 1),
-            ("Power Factor", "", 1.0, 3),
-            ("Reactive Power", "kVAR", 1000, 1)
+        self.frequency_displays = []
+        
+        # ROW 1: Voltage (3 cards)
+        voltage_configs = [
+            ("L1-L2 Voltage", "V", 0, 0, 0),
+            ("L2-L3 Voltage", "V", 0, 1, 1),
+            ("L3-L1 Voltage", "V", 0, 2, 2)
         ]
         
-        for label, unit, max_val, decimals in power_configs:
-            display = ModernPowerDisplay(label, unit, max_val, decimals)
-            self.power_displays.append(display)
-            power_layout.addWidget(display)
+        for label, unit, row, col, idx in voltage_configs:
+            card = self.create_minimal_card(label, unit, "voltage", group="Voltage", index=idx)
+            self.voltage_displays.append(card)
+            content_layout.addWidget(card, row, col)
         
-        # Configuration warning label for power
-        self.power_warning = QLabel("⚠️ No Configuration Set - Click the gear icon to configure Modbus addresses")
-        self.power_warning.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 180, 0, 0.2);
-                color: rgb(255, 200, 100);
-                border: 2px dashed rgb(255, 180, 0);
-                border-radius: 5px;
-                padding: 15px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-        """)
-        self.power_warning.setAlignment(Qt.AlignCenter)
-        power_section_layout.addWidget(power_section)
-        power_section_layout.addWidget(self.power_warning)
-        content_layout.addLayout(power_section_layout)
+        # ROW 2: Current (3 cards)
+        current_configs = [
+            ("L1 Current", "A", 1, 0, 0),
+            ("L2 Current", "A", 1, 1, 1),
+            ("L3 Current", "A", 1, 2, 2)
+        ]
         
-        # Add stretch to push content to top
-        content_layout.addStretch()
+        for label, unit, row, col, idx in current_configs:
+            card = self.create_minimal_card(label, unit, "current", group="Current", index=idx)
+            self.amperage_displays.append(card)
+            content_layout.addWidget(card, row, col)
         
-        # Set content widget to scroll area
-        scroll_area.setWidget(content_widget)
-        main_layout.addWidget(scroll_area, 1)
+        # ROW 3: Active Power (col 0), Power Factor + Reactive Power (col 1 - split), Frequency (col 2)
+        # Active Power
+        active_power_card = self.create_minimal_card("Active Power", "kW", "power", group="Power", index=0)
+        self.power_displays.append(active_power_card)
+        content_layout.addWidget(active_power_card, 2, 0)
+        
+        # Power Factor and Reactive Power - Split horizontally (side by side) in middle column
+        pf_reactive_container = QWidget()
+        pf_reactive_layout = QHBoxLayout(pf_reactive_container)
+        pf_reactive_layout.setSpacing(12)
+        pf_reactive_layout.setContentsMargins(0, 0, 0, 0)
+        
+        pf_card = self.create_minimal_card("Power Factor", "", "power", group="Power", index=1)
+        reactive_card = self.create_minimal_card("Reactive Power", "kVAR", "power", group="Power", index=2)
+        
+        self.power_displays.append(pf_card)
+        self.power_displays.append(reactive_card)
+        
+        pf_reactive_layout.addWidget(pf_card)
+        pf_reactive_layout.addWidget(reactive_card)
+        content_layout.addWidget(pf_reactive_container, 2, 1)
+        
+        # Frequency (replaces old Reactive Power position)
+        frequency_card = self.create_minimal_card("Frequency", "Hz", "frequency", group="Frequency", index=0)
+        self.frequency_displays.append(frequency_card)
+        content_layout.addWidget(frequency_card, 2, 2)
+        
+        # Add grid to main layout
+        main_layout.addLayout(content_layout, 1)
         
         self.setLayout(main_layout)
         
         # Store modbus client reference
         self.modbus_client = None
+    
+    def create_minimal_card(self, label, unit, type_color, group, index):
+        """Create a minimal, professional card for displaying electrical parameter"""
+        card = QWidget()
+        card.setMinimumHeight(140)
         
-        # Update warning visibility based on configuration
-        self.update_warning_visibility()
+        # Color schemes
+        colors = {
+            "voltage": ("rgb(59, 130, 246)", "rgba(59, 130, 246, 0.1)"),  # Blue
+            "current": ("rgb(139, 92, 246)", "rgba(139, 92, 246, 0.1)"),  # Purple
+            "power": ("rgb(16, 185, 129)", "rgba(16, 185, 129, 0.1)"),     # Green
+            "frequency": ("rgb(251, 191, 36)", "rgba(251, 191, 36, 0.1)")  # Yellow/Amber
+        }
+        accent_color, bg_color = colors.get(type_color, colors["voltage"])
+        
+        card.setStyleSheet(f"""
+            QWidget {{
+                background: {bg_color};
+                border: 1px solid rgba(75, 85, 99, 0.3);
+                border-radius: 0px;
+            }}
+            QLabel {{
+                border: none;
+                outline: none;
+            }}
+        """)
+        
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(24, 20, 24, 20)
+        card_layout.setSpacing(8)
+        
+        # Label
+        label_widget = QLabel(label)
+        label_widget.setFont(QFont("Segoe UI", 11, QFont.Normal))
+        label_widget.setStyleSheet("""
+            color: rgb(156, 163, 175);
+            letter-spacing: 0.01em;
+            background: transparent;
+            border: none;
+        """)
+        card_layout.addWidget(label_widget)
+        
+        card_layout.addStretch()
+        
+        # Value and Unit on same line
+        value_unit_layout = QHBoxLayout()
+        value_unit_layout.setSpacing(8)
+        value_unit_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Value display
+        value_widget = QLabel("0.0")
+        value_widget.setFont(QFont("Segoe UI", 36, QFont.Bold))
+        value_widget.setStyleSheet(f"""
+            color: {accent_color};
+            letter-spacing: -0.02em;
+            background: transparent;
+            border: none;
+        """)
+        value_widget.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
+        value_unit_layout.addWidget(value_widget, 0)
+        
+        # Unit
+        if unit:
+            unit_widget = QLabel(unit)
+            unit_widget.setFont(QFont("Segoe UI", 16, QFont.Normal))
+            unit_widget.setStyleSheet("""
+                color: rgb(107, 114, 128);
+                letter-spacing: 0.01em;
+                background: transparent;
+                border: none;
+                padding-bottom: 4px;
+            """)
+            unit_widget.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
+            value_unit_layout.addWidget(unit_widget, 0)
+        
+        value_unit_layout.addStretch()
+        card_layout.addLayout(value_unit_layout)
+        
+        # Store value widget reference and parameter identity
+        card.value_label = value_widget
+        card.param_group = group
+        card.param_index = index
+        
+        def set_value_safe(v):
+            try:
+                value_widget.setText(f"{float(v):.1f}")
+            except Exception:
+                value_widget.setText(str(v))
+        card.set_value = set_value_safe
+        
+        # Dynamic status styling - 4 states: disconnected, low, normal, high
+        def set_status(status):
+            if status == 'disconnected':
+                # Gray - Not connected
+                bg = 'rgba(55, 65, 81, 0.15)'; border = 'rgba(75, 85, 99, 0.3)'; text = 'rgb(107, 114, 128)'
+            elif status == 'low':
+                # Yellow - Low value
+                bg = 'rgba(245, 158, 11, 0.12)'; border = 'rgba(245, 158, 11, 0.35)'; text = 'rgb(251, 191, 36)'
+            elif status == 'high':
+                # Red - High value
+                bg = 'rgba(239, 68, 68, 0.12)'; border = 'rgba(239, 68, 68, 0.35)'; text = 'rgb(248, 113, 113)'
+            else:  # normal
+                # Green - Normal value
+                bg = 'rgba(16, 185, 129, 0.12)'; border = 'rgba(16, 185, 129, 0.35)'; text = 'rgb(52, 211, 153)'
+            
+            card.setStyleSheet(f"""
+                QWidget {{ background: {bg}; border: 1px solid {border}; border-radius: 0px; }}
+                QLabel {{ border: none; outline: none; }}
+            """)
+            value_widget.setStyleSheet(f"color: {text}; letter-spacing: -0.02em; background: transparent; border: none;")
+        card.set_status = set_status
+        
+        # Default initial status - disconnected
+        card.set_status('disconnected')
+        
+        return card
     
     def load_config(self):
         """Load Modbus configuration from encrypted file"""
@@ -9668,7 +10986,8 @@ class ElectricalParameterTab(QWidget):
         default_electrical_params = {
             "Voltage": [],
             "Current": [],
-            "Power": []
+            "Power": [],
+            "Frequency": []
         }
         
         try:
@@ -9693,26 +11012,49 @@ class ElectricalParameterTab(QWidget):
         try:
             if save_encrypted_config(self.config, "modbus_config.dat"):
                 print("Modbus configuration saved successfully")
-                # Update warning visibility after saving
-                self.update_warning_visibility()
             else:
                 print("Error saving Modbus configuration to encrypted file")
         except Exception as e:
             print(f"Error saving Modbus configuration: {e}")
     
-    def update_warning_visibility(self):
-        """Show or hide warning labels based on configuration status"""
-        electrical_config = self.config.get("ElectricalParameters", {})
+    def show_configuration_menu(self):
+        """Show menu to select which section to configure"""
+        from PyQt5.QtWidgets import QMenu
         
-        # Check each section
-        voltage_config = electrical_config.get("Voltage", [])
-        current_config = electrical_config.get("Current", [])
-        power_config = electrical_config.get("Power", [])
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background: rgba(17, 24, 39, 0.98);
+                color: rgb(209, 213, 219);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 24px;
+                border-radius: 0px;
+            }
+            QMenu::item:selected {
+                background: rgba(59, 130, 246, 0.2);
+                color: rgb(224, 231, 255);
+            }
+        """)
         
-        # Show/hide warnings
-        self.voltage_warning.setVisible(len(voltage_config) == 0)
-        self.current_warning.setVisible(len(current_config) == 0)
-        self.power_warning.setVisible(len(power_config) == 0)
+        voltage_action = menu.addAction("Configure Voltage")
+        current_action = menu.addAction("Configure Current")
+        power_action = menu.addAction("Configure Power")
+        frequency_action = menu.addAction("Configure Frequency")
+        
+        action = menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
+        
+        if action == voltage_action:
+            self.open_settings('Voltage')
+        elif action == current_action:
+            self.open_settings('Current')
+        elif action == power_action:
+            self.open_settings('Power')
+        elif action == frequency_action:
+            self.open_settings('Frequency')
     
     def open_settings(self, group_name):
         """Open settings dialog for a specific group with password protection"""
@@ -9737,17 +11079,38 @@ class ElectricalParameterTab(QWidget):
         
         # If empty, provide template with 3 empty rows
         if not current_config:
-            labels_map = {
-                "Voltage": ["L1-L2 Voltage", "L2-L3 Voltage", "L3-L1 Voltage"],
-                "Current": ["L1", "L2", "L3"],
-                "Power": ["Active Power", "Power Factor", "Reactive Power"]
-            }
-            labels = labels_map.get(group_name, ["Parameter 1", "Parameter 2", "Parameter 3"])
-            current_config = [
-                {"label": labels[0], "type": "input", "address": 30001, "device_id": 5},
-                {"label": labels[1], "type": "input", "address": 30002, "device_id": 5},
-                {"label": labels[2], "type": "input", "address": 30003, "device_id": 5}
-            ]
+            if group_name == "Voltage":
+                current_config = [
+                    {"label": "L1-L2 Voltage", "type": "input", "address": 30001, "device_id": 5,
+                     "set_value": 400, "increase_coil": 1, "decrease_coil": 2},
+                    {"label": "L2-L3 Voltage", "type": "input", "address": 30002, "device_id": 5,
+                     "set_value": 400, "increase_coil": 3, "decrease_coil": 4},
+                    {"label": "L3-L1 Voltage", "type": "input", "address": 30003, "device_id": 5,
+                     "set_value": 400, "increase_coil": 5, "decrease_coil": 6}
+                ]
+            elif group_name == "Current":
+                current_config = [
+                    {"label": "L1", "type": "input", "address": 30004, "device_id": 5},
+                    {"label": "L2", "type": "input", "address": 30005, "device_id": 5},
+                    {"label": "L3", "type": "input", "address": 30006, "device_id": 5}
+                ]
+            elif group_name == "Power":
+                current_config = [
+                    {"label": "Active Power", "type": "input", "address": 30007, "device_id": 5},
+                    {"label": "Power Factor", "type": "input", "address": 30008, "device_id": 5},
+                    {"label": "Reactive Power", "type": "input", "address": 30009, "device_id": 5}
+                ]
+            elif group_name == "Frequency":
+                current_config = [
+                    {"label": "Frequency", "type": "input", "address": 30010, "device_id": 5,
+                     "set_value": 50.0, "increase_coil": 15, "decrease_coil": 16}
+                ]
+            else:
+                current_config = [
+                    {"label": "Parameter 1", "type": "input", "address": 30001, "device_id": 5},
+                    {"label": "Parameter 2", "type": "input", "address": 30002, "device_id": 5},
+                    {"label": "Parameter 3", "type": "input", "address": 30003, "device_id": 5}
+                ]
         
         # Open configuration dialog
         dialog = ModbusConfigDialog(self, group_name, current_config)
@@ -9773,18 +11136,26 @@ class ElectricalParameterTab(QWidget):
         self.modbus_client = client
     
     def clear_displays(self):
-        """Clear all electrical parameter displays to zero"""
+        """Clear all electrical parameter displays to zero and set disconnected state"""
         # Clear all voltage displays
         for display in self.voltage_displays:
             display.set_value(0)
+            display.set_status('disconnected')
         
         # Clear all amperage displays
         for display in self.amperage_displays:
             display.set_value(0)
+            display.set_status('disconnected')
         
         # Clear all power displays
         for display in self.power_displays:
             display.set_value(0)
+            display.set_status('disconnected')
+        
+        # Clear all frequency displays
+        for display in self.frequency_displays:
+            display.set_value(0)
+            display.set_status('disconnected')
     
     def read_modbus_value(self, param):
         """Read a single Modbus value based on configuration"""
@@ -9839,168 +11210,209 @@ class ElectricalParameterTab(QWidget):
             print(f"Error reading Modbus address {param['address']}: {e}")
             return None
     
-    def update_electrical_data(self, values=None):
-        """Update electrical parameter values - now uses configuration-based reading"""
-        # If values are provided (legacy/test mode), use them
-        if values is not None:
-            # Legacy update for test mode
-            if len(values) < 9:
-                return
-            
-            for i, display in enumerate(self.voltage_displays):
-                if i < len(values):
-                    voltage = (values[i] / 1000.0) * 500
-                    display.set_value(voltage)
-            
-            for i, display in enumerate(self.amperage_displays):
-                value_index = i + 3
-                if value_index < len(values):
-                    current = (values[value_index] / 1000.0) * 100
-                    display.set_value(current)
-            
-            power_indices = [6, 7, 8]
-            for i, display in enumerate(self.power_displays):
-                value_index = power_indices[i]
-                if value_index < len(values):
-                    if i == 0:
-                        power = (values[value_index] / 1000.0) * 1000
-                        display.set_value(power)
-                    elif i == 1:
-                        pf = values[value_index] / 1000.0
-                        display.set_value(pf)
-                    elif i == 2:
-                        reactive = (values[value_index] / 1000.0) * 1000
-                        display.set_value(reactive)
-            return
-        
-        # Configuration-based reading using new dialog format
+    def pulse_coil(self, coil_address, device_id):
+        """Send a single pulse to a coil (write ON, wait, write OFF)"""
         if not self.modbus_client:
-            return
-        
-        # Load voltage configuration
-        voltage_config = load_encrypted_config("modbus_config.dat")
-        if voltage_config and "ElectricalVoltage" in voltage_config:
-            v_cfg = voltage_config["ElectricalVoltage"]
-            reg_type = v_cfg.get("register_type", "input")
-            start_addr = v_cfg.get("start_address", 30001)
-            device_id = v_cfg.get("data_device_id", 1)
-            
-            # Read 3 consecutive registers for 3 voltage phases
-            for i in range(3):
-                addr = start_addr + i
-                value = self.read_modbus_register(device_id, reg_type, addr)
-                if value is not None and i < len(self.voltage_displays):
-                    # Scale value to voltage (0-500V range)
-                    voltage = (value / 1000.0) * 500
-                    self.voltage_displays[i].set_value(voltage)
-        
-        # Load current configuration
-        current_config = load_encrypted_config("modbus_config.dat")
-        if current_config and "ElectricalCurrent" in current_config:
-            c_cfg = current_config["ElectricalCurrent"]
-            reg_type = c_cfg.get("register_type", "input")
-            start_addr = c_cfg.get("start_address", 30004)
-            device_id = c_cfg.get("data_device_id", 1)
-            
-            # Read 3 consecutive registers for 3 current phases
-            for i in range(3):
-                addr = start_addr + i
-                value = self.read_modbus_register(device_id, reg_type, addr)
-                if value is not None and i < len(self.amperage_displays):
-                    # Scale value to current (0-100A range)
-                    current = (value / 1000.0) * 100
-                    self.amperage_displays[i].set_value(current)
-        
-        # Load power configuration
-        power_config = load_encrypted_config("modbus_config.dat")
-        if power_config and "ElectricalPower" in power_config:
-            p_cfg = power_config["ElectricalPower"]
-            
-            # Active Power
-            active_reg_type = p_cfg.get("active_register_type", "input")
-            active_addr = p_cfg.get("active_address", 30007)
-            active_device_id = p_cfg.get("active_data_device_id", 1)
-            value = self.read_modbus_register(active_device_id, active_reg_type, active_addr)
-            if value is not None:
-                power = (value / 1000.0) * 1000  # Scale to 0-1000kW
-                self.power_displays[0].set_value(power)
-            
-            # Power Factor
-            pf_reg_type = p_cfg.get("pf_register_type", "input")
-            pf_addr = p_cfg.get("pf_address", 30008)
-            pf_device_id = p_cfg.get("pf_data_device_id", 1)
-            value = self.read_modbus_register(pf_device_id, pf_reg_type, pf_addr)
-            if value is not None:
-                pf = value / 1000.0  # Scale to 0-1.0
-                self.power_displays[1].set_value(pf)
-            
-            # Reactive Power
-            reactive_reg_type = p_cfg.get("reactive_register_type", "input")
-            reactive_addr = p_cfg.get("reactive_address", 30009)
-            reactive_device_id = p_cfg.get("reactive_data_device_id", 1)
-            value = self.read_modbus_register(reactive_device_id, reactive_reg_type, reactive_addr)
-            if value is not None:
-                reactive = (value / 1000.0) * 1000  # Scale to 0-1000kVAR
-                self.power_displays[2].set_value(reactive)
-    
-    def read_modbus_register(self, device_id, register_type, address):
-        """Read a single Modbus register"""
-        if not self.modbus_client:
-            return None
+            return False
         
         try:
-            # Convert address to 0-based (Modbus addresses are 1-based in user interface)
-            modbus_address = address - 1 if address >= 30001 else address
-            if address >= 40001:
-                modbus_address = address - 40001
-            elif address >= 30001:
-                modbus_address = address - 30001
+            # Coil addresses: 1-9999 → offset = address - 1
+            offset = coil_address - 1
             
-            # Read based on register type
-            if register_type == "holding":
-                result = self.modbus_client.read_holding_registers(modbus_address, 1, slave=device_id)
-            else:  # input
-                result = self.modbus_client.read_input_registers(modbus_address, 1, slave=device_id)
+            # Write ON (True)
+            result_on = self.modbus_client.write_coil(
+                address=offset,
+                value=True,
+                slave=device_id
+            )
             
-            if not result.isError():
-                return result.registers[0]
+            if result_on and not result_on.isError():
+                # Short delay for pulse duration
+                QTimer.singleShot(100, lambda: self._complete_pulse(offset, device_id))
+                return True
             else:
-                print(f"Error reading {register_type} register {address} from device {device_id}")
-                return None
+                print(f"Error pulsing coil {coil_address}: Failed to write ON")
+                return False
+                
         except Exception as e:
-            print(f"Exception reading Modbus register {address}: {e}")
-            return None
+            print(f"Error pulsing coil {coil_address}: {e}")
+            return False
     
-    def open_settings(self, section_type):
-        """Open configuration dialog for electrical parameters"""
-        # Check if admin is logged in
-        admin_logged_in = getattr(self.parent_window, 'admin_logged_in', False)
+    def _complete_pulse(self, offset, device_id):
+        """Complete the pulse by writing OFF"""
+        try:
+            # Write OFF (False)
+            result_off = self.modbus_client.write_coil(
+                address=offset,
+                value=False,
+                slave=device_id
+            )
+            if result_off and result_off.isError():
+                print(f"Error completing pulse at offset {offset}: Failed to write OFF")
+        except Exception as e:
+            print(f"Error completing pulse at offset {offset}: {e}")
+    
+    def regulate_voltage(self, voltage_config, current_value, voltage_index):
+        """Automatically regulate voltage by pulsing coils based on set value and check alarm limits"""
+        # Check if regulation parameters are configured
+        if "set_value" not in voltage_config:
+            return  # No set value configured, skip regulation
         
-        if not admin_logged_in:
-            password, ok = QInputDialog.getText(self, "Administrator Access",
-                                               "Enter admin password:",
-                                               QLineEdit.Password)
-            # Get admin password from parent window
-            admin_password = getattr(self.parent_window, 'admin_password', 'admin123')
-            if not (ok and password == admin_password):
-                if ok:
-                    QMessageBox.warning(self, "Access Denied", "Incorrect password!")
-                return
+        set_value = voltage_config.get("set_value")
+        upper_limit = voltage_config.get("upper_limit")
+        lower_limit = voltage_config.get("lower_limit")
+        alarm_coil = voltage_config.get("alarm_coil", 0)
+        relay_device_id = voltage_config.get("relay_device_id", 5)
+        increase_coil = voltage_config.get("increase_coil")
+        decrease_coil = voltage_config.get("decrease_coil")
         
-        # Open appropriate configuration dialog based on section type
-        if section_type == 'Voltage':
-            dialog = ElectricalVoltageConfigDialog(self)
-        elif section_type == 'Current':
-            dialog = ElectricalCurrentConfigDialog(self)
-        elif section_type == 'Power':
-            dialog = ElectricalPowerConfigDialog(self)
-        else:
+        # Validate all required parameters
+        if not all([set_value, increase_coil, decrease_coil]):
             return
         
-        if dialog.exec_() == QDialog.Accepted:
-            # Reload configuration
-            self.load_config()
-            print(f"{section_type} configuration updated successfully")
+        try:
+            current_val = float(current_value)
+            set_val = float(set_value)
+            
+            # Initialize alarm state tracker if not exists
+            if not hasattr(self, '_alarm_states'):
+                self._alarm_states = {}
+            
+            voltage_key = f"voltage_{voltage_index}"
+            
+            # Check alarm limits first (if configured)
+            if alarm_coil > 0 and upper_limit is not None and lower_limit is not None:
+                alarm_triggered = (current_val > upper_limit) or (current_val < lower_limit)
+                
+                # Get previous alarm state
+                prev_alarm_state = self._alarm_states.get(voltage_key, False)
+                
+                # Only write to coil if state changed
+                if alarm_triggered != prev_alarm_state:
+                    try:
+                        offset = alarm_coil - 1
+                        result = self.modbus_client.write_coil(
+                            address=offset,
+                            value=alarm_triggered,
+                            slave=relay_device_id
+                        )
+                        if result and not result.isError():
+                            self._alarm_states[voltage_key] = alarm_triggered
+                            if alarm_triggered:
+                                print(f"ALARM: Voltage {voltage_index} = {current_val:.1f}V (Limits: {lower_limit:.1f}-{upper_limit:.1f}V) - Coil {alarm_coil} ON")
+                            else:
+                                print(f"CLEAR: Voltage {voltage_index} = {current_val:.1f}V back in range - Coil {alarm_coil} OFF")
+                    except Exception as e:
+                        print(f"Error writing alarm coil {alarm_coil}: {e}")
+            
+            # Automatic regulation logic
+            # Define tolerance (deadband) to avoid oscillation
+            tolerance = 2.0  # ±2V deadband
+            
+            # Initialize last pulse time tracker if not exists
+            if not hasattr(self, '_last_pulse_time'):
+                self._last_pulse_time = {}
+            
+            # Minimum time between pulses (milliseconds)
+            pulse_interval = 1000  # 1 second between pulses
+            
+            # Check if enough time has passed since last pulse
+            import time
+            current_time = time.time() * 1000  # Convert to milliseconds
+            last_time = self._last_pulse_time.get(voltage_key, 0)
+            
+            if (current_time - last_time) < pulse_interval:
+                return  # Too soon, skip this pulse
+            
+            # Check if voltage is outside tolerance
+            if current_val < (set_val - tolerance):
+                # Voltage too low - pulse increase coil
+                if self.pulse_coil(increase_coil, relay_device_id):
+                    print(f"Voltage {voltage_index}: {current_val:.1f}V < {set_val:.1f}V - Pulsing INCREASE coil {increase_coil}")
+                    self._last_pulse_time[voltage_key] = current_time
+            
+            elif current_val > (set_val + tolerance):
+                # Voltage too high - pulse decrease coil
+                if self.pulse_coil(decrease_coil, relay_device_id):
+                    print(f"Voltage {voltage_index}: {current_val:.1f}V > {set_val:.1f}V - Pulsing DECREASE coil {decrease_coil}")
+                    self._last_pulse_time[voltage_key] = current_time
+            
+            # else: voltage is within tolerance, no action needed
+            
+        except (ValueError, TypeError) as e:
+            print(f"Error in voltage regulation for index {voltage_index}: {e}")
+    
+    def update_electrical_data(self, values=None):
+        """Update electrical parameter values with per-parameter thresholds and colors"""
+        def status_for_value(val, group):
+            try:
+                v = float(val)
+            except Exception:
+                return 'disconnected'
+            
+            if group == 'Voltage':
+                # Low: <385, Normal: 385-415, High: >415
+                if v < 385: return 'low'
+                if v > 415: return 'high'
+                return 'normal'
+            
+            if group == 'Current':
+                # Low: <20, Normal: 20-60, High: >60
+                if v < 20: return 'low'
+                if v > 60: return 'high'
+                return 'normal'
+            
+            if group == 'Power':
+                # For Active/Reactive: Low <100, Normal 100-800, High >800
+                # For Power Factor: Low <0.85, Normal 0.85-1.0, High >1.0
+                if v < 100: return 'low'
+                if v > 800: return 'high'
+                return 'normal'
+            
+            return 'normal'
+        
+        # If values are provided (test mode), map in order
+        if values is not None:
+            if len(values) < 9:
+                return
+            # Voltages
+            for i, card in enumerate(self.voltage_displays):
+                val = values[i]
+                card.set_value(val)
+                card.set_status(status_for_value(val, 'Voltage'))
+            # Currents
+            for i, card in enumerate(self.amperage_displays):
+                val = values[3 + i]
+                card.set_value(val)
+                card.set_status(status_for_value(val, 'Current'))
+            # Power
+            for i, card in enumerate(self.power_displays):
+                val = values[6 + i]
+                card.set_value(val)
+                card.set_status(status_for_value(val, 'Power'))
+            return
+        
+        # Otherwise read from configuration per-parameter
+        ep = (self.config or {}).get('ElectricalParameters', {})
+        groups = {
+            'Voltage': (self.voltage_displays, ep.get('Voltage', [])),
+            'Current': (self.amperage_displays, ep.get('Current', [])),
+            'Power': (self.power_displays, ep.get('Power', [])),
+        }
+        
+        for group_name, (cards, cfg_list) in groups.items():
+            for idx, card in enumerate(cards):
+                if idx < len(cfg_list):
+                    val = self.read_modbus_value(cfg_list[idx])
+                    if val is None: 
+                        card.set_status('disconnected')
+                        continue
+                    card.set_value(val)
+                    card.set_status(status_for_value(val, group_name))
+                    
+                    # Voltage regulation: pulse coils to maintain set value
+                    if group_name == 'Voltage':
+                        self.regulate_voltage(cfg_list[idx], val, idx)
 
 
 # ---------------- History Tab ----------------
@@ -10854,167 +12266,1706 @@ class ReportTab(QWidget):
                 return "rgb(255, 100, 100)"  # Red for very high
 
 
+# ---------------- Startup Condition Configuration Dialog ----------------
+class StartupConditionConfigDialog(QDialog):
+    def __init__(self, parent=None, condition_name="", condition_config=None):
+        super().__init__(parent)
+        self.condition_name = condition_name
+        self.config = condition_config or {}
+        self.setWindowTitle(f"{condition_name} Configuration")
+        self.setModal(True)
+        self.setMinimumWidth(450)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel(f"⚙️ {condition_name.upper()}")
+        title.setStyleSheet("""
+            QLabel {
+                color: rgb(0, 200, 255);
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+        """)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Configuration form
+        form_group = QGroupBox("Modbus Configuration")
+        form_group.setStyleSheet("""
+            QGroupBox {
+                color: rgb(200, 220, 240);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 5px 10px;
+                color: rgb(0, 200, 255);
+            }
+        """)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
+        # Device ID
+        self.device_id_spin = QSpinBox()
+        self.device_id_spin.setRange(1, 255)
+        self.device_id_spin.setValue(self.config.get("device_id", 1))
+        self.device_id_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(200, 200, 255);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(200, 200, 255);
+            }
+        """)
+        form_layout.addRow("Device ID:", self.device_id_spin)
+        
+        # Register Address
+        self.address_spin = QSpinBox()
+        self.address_spin.setRange(0, 65535)
+        self.address_spin.setValue(self.config.get("address", 0))
+        self.address_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(0, 255, 180);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(0, 255, 180);
+            }
+        """)
+        form_layout.addRow("Register Address:", self.address_spin)
+        
+        # Register Type
+        self.reg_type_combo = QComboBox()
+        self.reg_type_combo.addItems(["Coil", "Discrete Input", "Input Register", "Holding Register"])
+        current_type = self.config.get("register_type", "Input Register")
+        self.reg_type_combo.setCurrentText(current_type)
+        self.reg_type_combo.setStyleSheet("""
+            QComboBox {
+                background: rgb(30, 40, 55);
+                color: rgb(255, 200, 100);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+        """)
+        form_layout.addRow("Register Type:", self.reg_type_combo)
+        
+        # Comparison Type
+        self.comparison_combo = QComboBox()
+        self.comparison_combo.addItems([">", ">=", "<", "<=", "==", "!="])
+        current_comparison = self.config.get("comparison", ">")
+        self.comparison_combo.setCurrentText(current_comparison)
+        self.comparison_combo.setStyleSheet("""
+            QComboBox {
+                background: rgb(30, 40, 55);
+                color: rgb(255, 150, 200);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+        """)
+        form_layout.addRow("Comparison:", self.comparison_combo)
+        
+        # Threshold Value
+        self.value_spin = QDoubleSpinBox()
+        self.value_spin.setRange(-9999, 9999)
+        self.value_spin.setDecimals(2)
+        self.value_spin.setValue(self.config.get("value", 0))
+        self.value_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(100, 255, 100);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QDoubleSpinBox:focus {
+                border: 2px solid rgb(100, 255, 100);
+            }
+        """)
+        form_layout.addRow("Threshold Value:", self.value_spin)
+        
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+        
+        # Info label
+        info_label = QLabel(f"ℹ️ Configure the Modbus parameters to read the condition value")
+        info_label.setStyleSheet("""
+            QLabel {
+                color: rgb(150, 170, 190);
+                font-size: 11px;
+                font-style: italic;
+                padding: 10px;
+                background: rgb(25, 35, 50);
+                border-radius: 5px;
+            }
+        """)
+        info_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(info_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumHeight(35)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(60, 70, 85);
+                color: rgb(200, 220, 240);
+                border: 1px solid rgb(80, 90, 105);
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: rgb(70, 80, 95);
+            }
+            QPushButton:pressed {
+                background: rgb(50, 60, 75);
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        save_btn = QPushButton("💾 Save Configuration")
+        save_btn.setMinimumHeight(35)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 200, 255), stop:1 rgb(0, 150, 200));
+                color: rgb(255, 255, 255);
+                border: none;
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 220, 255), stop:1 rgb(0, 170, 220));
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 150, 200), stop:1 rgb(0, 100, 150));
+            }
+        """)
+        save_btn.clicked.connect(self.save_configuration)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(save_btn)
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+        self.setStyleSheet("""
+            QDialog {
+                background: rgb(20, 30, 45);
+            }
+        """)
+    
+    def save_configuration(self):
+        """Save configuration"""
+        try:
+            config_data = load_encrypted_config("modbus_config.dat") or {}
+            
+            if "StartupConditions" not in config_data:
+                config_data["StartupConditions"] = {}
+            
+            config_data["StartupConditions"][self.condition_name] = {
+                "device_id": self.device_id_spin.value(),
+                "address": self.address_spin.value(),
+                "register_type": self.reg_type_combo.currentText(),
+                "comparison": self.comparison_combo.currentText(),
+                "value": self.value_spin.value()
+            }
+            
+            if save_encrypted_config(config_data, "modbus_config.dat"):
+                QMessageBox.information(self, "Success", "Configuration saved successfully!")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to save configuration")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save configuration:\n{e}")
+
+
+# ---------------- Engine Control Configuration Dialog ----------------
+class EngineControlConfigDialog(QDialog):
+    def __init__(self, parent=None, control_type="Start"):
+        super().__init__(parent)
+        self.control_type = control_type
+        self.setWindowTitle(f"Engine {control_type} Configuration")
+        self.setModal(True)
+        self.setMinimumWidth(450)
+        
+        # Load current configuration
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        engine_control = config_data.get("EngineControl", {})
+        self.config = engine_control.get(control_type, {})
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel(f"⚙️ ENGINE {control_type.upper()} CONFIGURATION")
+        title.setStyleSheet("""
+            QLabel {
+                color: rgb(0, 200, 255);
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+        """)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Configuration form
+        form_group = QGroupBox("Coil Configuration")
+        form_group.setStyleSheet("""
+            QGroupBox {
+                color: rgb(200, 220, 240);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 5px 10px;
+                color: rgb(0, 200, 255);
+            }
+        """)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
+        # Device ID
+        self.device_id_spin = QSpinBox()
+        self.device_id_spin.setRange(1, 255)
+        self.device_id_spin.setValue(self.config.get("device_id", 1))
+        self.device_id_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(200, 200, 255);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(200, 200, 255);
+            }
+        """)
+        form_layout.addRow("Device ID:", self.device_id_spin)
+        
+        # Coil Address
+        self.coil_address_spin = QSpinBox()
+        self.coil_address_spin.setRange(0, 65535)
+        self.coil_address_spin.setValue(self.config.get("coil_address", 0))
+        self.coil_address_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(0, 255, 180);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(0, 255, 180);
+            }
+        """)
+        form_layout.addRow("Coil Address:", self.coil_address_spin)
+        
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+        
+        # Info label
+        info_text = f"ℹ️ Configure the Modbus coil to write for Engine {control_type}"
+        info_label = QLabel(info_text)
+        info_label.setStyleSheet("""
+            QLabel {
+                color: rgb(150, 170, 190);
+                font-size: 11px;
+                font-style: italic;
+                padding: 10px;
+                background: rgb(25, 35, 50);
+                border-radius: 5px;
+            }
+        """)
+        info_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(info_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumHeight(35)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(60, 70, 85);
+                color: rgb(200, 220, 240);
+                border: 1px solid rgb(80, 90, 105);
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: rgb(70, 80, 95);
+            }
+            QPushButton:pressed {
+                background: rgb(50, 60, 75);
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        save_btn = QPushButton("💾 Save Configuration")
+        save_btn.setMinimumHeight(35)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 200, 255), stop:1 rgb(0, 150, 200));
+                color: rgb(255, 255, 255);
+                border: none;
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 220, 255), stop:1 rgb(0, 170, 220));
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 150, 200), stop:1 rgb(0, 100, 150));
+            }
+        """)
+        save_btn.clicked.connect(self.save_configuration)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(save_btn)
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+        self.setStyleSheet("""
+            QDialog {
+                background: rgb(20, 30, 45);
+            }
+        """)
+    
+    def save_configuration(self):
+        """Save configuration"""
+        try:
+            config_data = load_encrypted_config("modbus_config.dat") or {}
+            
+            if "EngineControl" not in config_data:
+                config_data["EngineControl"] = {}
+            
+            config_data["EngineControl"][self.control_type] = {
+                "device_id": self.device_id_spin.value(),
+                "coil_address": self.coil_address_spin.value()
+            }
+            
+            if save_encrypted_config(config_data, "modbus_config.dat"):
+                QMessageBox.information(self, "Success", "Configuration saved successfully!")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to save configuration")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save configuration:\n{e}")
+
+
+# ---------------- Frequency Control Configuration Dialog ----------------
+class FrequencyControlConfigDialog(QDialog):
+    def __init__(self, parent=None, control_type="Increase"):
+        super().__init__(parent)
+        self.control_type = control_type
+        self.setWindowTitle(f"Frequency {control_type} Configuration")
+        self.setModal(True)
+        self.setMinimumWidth(450)
+        
+        # Load current configuration
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        freq_control = config_data.get("FrequencyControl", {})
+        self.config = freq_control.get(control_type, {})
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel(f"⚙️ FREQUENCY {control_type.upper()} CONFIGURATION")
+        title.setStyleSheet("""
+            QLabel {
+                color: rgb(0, 200, 255);
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+        """)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Configuration form
+        form_group = QGroupBox("Pulse Configuration")
+        form_group.setStyleSheet("""
+            QGroupBox {
+                color: rgb(200, 220, 240);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 5px 10px;
+                color: rgb(0, 200, 255);
+            }
+        """)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
+        # Device ID
+        self.device_id_spin = QSpinBox()
+        self.device_id_spin.setRange(1, 255)
+        self.device_id_spin.setValue(self.config.get("device_id", 1))
+        self.device_id_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(200, 200, 255);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(200, 200, 255);
+            }
+        """)
+        form_layout.addRow("Device ID:", self.device_id_spin)
+        
+        # Coil Address
+        self.coil_address_spin = QSpinBox()
+        self.coil_address_spin.setRange(0, 65535)
+        self.coil_address_spin.setValue(self.config.get("coil_address", 0))
+        self.coil_address_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(0, 255, 180);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(0, 255, 180);
+            }
+        """)
+        form_layout.addRow("Coil Address:", self.coil_address_spin)
+        
+        # Pulse Duration
+        self.pulse_duration_spin = QSpinBox()
+        self.pulse_duration_spin.setRange(50, 2000)
+        self.pulse_duration_spin.setValue(self.config.get("pulse_duration", 200))
+        self.pulse_duration_spin.setSuffix(" ms")
+        self.pulse_duration_spin.setStyleSheet("""
+            QSpinBox {
+                background: rgb(30, 40, 55);
+                color: rgb(255, 200, 100);
+                border: 2px solid rgb(60, 80, 100);
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QSpinBox:focus {
+                border: 2px solid rgb(255, 200, 100);
+            }
+        """)
+        form_layout.addRow("Pulse Duration:", self.pulse_duration_spin)
+        
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+        
+        # Info label
+        info_text = f"ℹ️ Pulse will turn coil ON briefly, then OFF automatically\nTypical pulse duration: 100-500ms"
+        info_label = QLabel(info_text)
+        info_label.setStyleSheet("""
+            QLabel {
+                color: rgb(150, 170, 190);
+                font-size: 11px;
+                font-style: italic;
+                padding: 10px;
+                background: rgb(25, 35, 50);
+                border-radius: 5px;
+            }
+        """)
+        info_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(info_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumHeight(35)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(60, 70, 85);
+                color: rgb(200, 220, 240);
+                border: 1px solid rgb(80, 90, 105);
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: rgb(70, 80, 95);
+            }
+            QPushButton:pressed {
+                background: rgb(50, 60, 75);
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        save_btn = QPushButton("💾 Save Configuration")
+        save_btn.setMinimumHeight(35)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 200, 255), stop:1 rgb(0, 150, 200));
+                color: rgb(255, 255, 255);
+                border: none;
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 220, 255), stop:1 rgb(0, 170, 220));
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgb(0, 150, 200), stop:1 rgb(0, 100, 150));
+            }
+        """)
+        save_btn.clicked.connect(self.save_configuration)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(save_btn)
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+        self.setStyleSheet("""
+            QDialog {
+                background: rgb(20, 30, 45);
+            }
+        """)
+    
+    def save_configuration(self):
+        """Save configuration"""
+        try:
+            config_data = load_encrypted_config("modbus_config.dat") or {}
+            
+            if "FrequencyControl" not in config_data:
+                config_data["FrequencyControl"] = {}
+            
+            config_data["FrequencyControl"][self.control_type] = {
+                "device_id": self.device_id_spin.value(),
+                "coil_address": self.coil_address_spin.value(),
+                "pulse_duration": self.pulse_duration_spin.value()
+            }
+            
+            if save_encrypted_config(config_data, "modbus_config.dat"):
+                QMessageBox.information(self, "Success", "Configuration saved successfully!")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to save configuration")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save configuration:\n{e}")
+
+
+# ---------------- Startup Tab - FUTURISTIC TONY STARK STYLE ----------------
+class StartupTab(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.setStyleSheet("background: transparent;")
+        
+        # Modbus client reference
+        self.modbus_client = None
+        
+        # Engine running state
+        self.engine_running = False
+        
+        # Startup conditions with their names and default values
+        self.startup_conditions = [
+            "LO Press > 0.5 bar",
+            "Fuel oil inlet pressure > 2.0 bar",
+            "HT-water temperature > 50°C",
+            "Starting air pressure > 16 bar",
+            "Turning gear disengaged",
+            "Stop lever in running position",
+            "Control room emerg. stop CFC011 inactive",
+            "Engine stopped",
+            "Breaker trip alarm inactive",
+            "Engine shutdown alarm inactive",
+            "Start failure inactive",
+            "AVR MCB closed",
+            "Stop solenoid valve inactive",
+            "Breaker conditions"
+        ]
+        
+        # Condition states (True = met, False = not met)
+        self.condition_states = {cond: False for cond in self.startup_conditions}
+        
+        # Main layout
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(1)
+        
+        # Left frame - Startup Conditions
+        left_frame = QWidget()
+        left_frame.setStyleSheet("""
+            QWidget {
+                background: rgba(20, 30, 45, 0.6);
+                border-right: 1px solid rgba(0, 180, 255, 0.3);
+            }
+        """)
+        left_layout = QVBoxLayout()
+        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setSpacing(10)
+        
+        # Title
+        title_label = QLabel("STARTING CONDITIONS")
+        title_label.setStyleSheet("""
+            QLabel {
+                color: rgb(180, 190, 200);
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 0px;
+                background: transparent;
+            }
+        """)
+        left_layout.addWidget(title_label)
+        
+        # Scroll area for conditions
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: rgb(30, 40, 55);
+                width: 12px;
+                border: 1px solid rgb(50, 60, 75);
+            }
+            QScrollBar::handle:vertical {
+                background: rgb(0, 150, 200);
+                border-radius: 6px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgb(0, 180, 230);
+            }
+        """)
+        
+        # Conditions container
+        conditions_widget = QWidget()
+        conditions_widget.setStyleSheet("QWidget { background: transparent; }")
+        conditions_layout = QVBoxLayout()
+        conditions_layout.setSpacing(1)
+        conditions_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create condition rows
+        self.condition_widgets = {}
+        for condition in self.startup_conditions:
+            condition_row = self.create_condition_row(condition)
+            conditions_layout.addWidget(condition_row)
+            self.condition_widgets[condition] = condition_row
+        
+        conditions_layout.addStretch()
+        conditions_widget.setLayout(conditions_layout)
+        scroll_area.setWidget(conditions_widget)
+        left_layout.addWidget(scroll_area)
+        
+        left_frame.setLayout(left_layout)
+        # Store reference to left frame for responsive sizing
+        self.left_frame = left_frame
+        main_layout.addWidget(left_frame, 3)
+        
+        # Right frame - Engine Control
+        right_frame = QWidget()
+        right_frame.setStyleSheet("""
+            QWidget {
+                background: rgb(15, 20, 30);
+            }
+        """)
+        # Store reference to right frame for responsive sizing
+        self.right_frame = right_frame
+        right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(20, 10, 20, 10)
+        right_layout.setSpacing(15)
+        
+        # Title
+        control_title = QLabel("ENGINE CONTROL")
+        control_title.setStyleSheet("""
+            QLabel {
+                color: rgb(180, 190, 200);
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 0px;
+                background: transparent;
+            }
+        """)
+        right_layout.addWidget(control_title)
+        
+        # Add stretch to push buttons to bottom
+        right_layout.addStretch()
+        
+        # Engine control buttons in a single row
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(10)
+        
+        # Engine Start Button
+        self.engine_start_btn = QPushButton("Start Engine")
+        self.engine_start_btn.setMinimumHeight(38)
+        self.engine_start_btn.setEnabled(False)
+        self.engine_start_btn.setCursor(Qt.PointingHandCursor)
+        self.engine_start_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                color: rgb(120, 130, 140);
+                border: 1px solid rgb(70, 80, 90);
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:enabled {
+                background: rgb(0, 180, 80);
+                color: white;
+                border: 1px solid rgb(0, 200, 100);
+            }
+            QPushButton:enabled:hover {
+                background: rgb(0, 200, 100);
+            }
+            QPushButton:enabled:pressed {
+                background: rgb(0, 160, 70);
+            }
+        """)
+        self.engine_start_btn.clicked.connect(self.start_engine)
+        
+        # Start config button
+        start_config_btn = QPushButton()
+        start_config_btn.setFixedSize(38, 38)
+        start_config_btn.setCursor(Qt.PointingHandCursor)
+        start_config_btn.setIcon(QIcon("imgs/setting.png"))
+        start_config_btn.setIconSize(QSize(18, 18))
+        start_config_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                border: 1px solid rgb(70, 80, 90);
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+        """)
+        start_config_btn.clicked.connect(lambda: self.configure_engine_control("Start"))
+        
+        # Engine Stop Button
+        self.engine_stop_btn = QPushButton("Stop Engine")
+        self.engine_stop_btn.setMinimumHeight(38)
+        self.engine_stop_btn.setEnabled(False)
+        self.engine_stop_btn.setCursor(Qt.PointingHandCursor)
+        self.engine_stop_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                color: rgb(120, 130, 140);
+                border: 1px solid rgb(70, 80, 90);
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:enabled {
+                background: rgb(200, 50, 50);
+                color: white;
+                border: 1px solid rgb(220, 70, 70);
+            }
+            QPushButton:enabled:hover {
+                background: rgb(220, 70, 70);
+            }
+            QPushButton:enabled:pressed {
+                background: rgb(180, 40, 40);
+            }
+        """)
+        self.engine_stop_btn.clicked.connect(self.stop_engine)
+        
+        # Stop config button
+        stop_config_btn = QPushButton()
+        stop_config_btn.setFixedSize(38, 38)
+        stop_config_btn.setCursor(Qt.PointingHandCursor)
+        stop_config_btn.setIcon(QIcon("imgs/setting.png"))
+        stop_config_btn.setIconSize(QSize(18, 18))
+        stop_config_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                border: 1px solid rgb(70, 80, 90);
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+        """)
+        stop_config_btn.clicked.connect(lambda: self.configure_engine_control("Stop"))
+        
+        # Frequency Increase Button
+        self.freq_increase_btn = QPushButton("▲ Frequency +")
+        self.freq_increase_btn.setMinimumHeight(38)
+        self.freq_increase_btn.setCursor(Qt.PointingHandCursor)
+        self.freq_increase_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                color: rgb(200, 210, 220);
+                border: 1px solid rgb(70, 80, 90);
+                font-size: 13px;
+                font-weight: normal;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+            QPushButton:pressed {
+                background: rgb(0, 150, 200);
+                color: white;
+            }
+        """)
+        self.freq_increase_btn.clicked.connect(self.increase_frequency)
+        
+        # Frequency increase config button
+        freq_inc_config_btn = QPushButton()
+        freq_inc_config_btn.setFixedSize(38, 38)
+        freq_inc_config_btn.setCursor(Qt.PointingHandCursor)
+        freq_inc_config_btn.setIcon(QIcon("imgs/setting.png"))
+        freq_inc_config_btn.setIconSize(QSize(18, 18))
+        freq_inc_config_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                border: 1px solid rgb(70, 80, 90);
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+        """)
+        freq_inc_config_btn.clicked.connect(lambda: self.configure_frequency_control("Increase"))
+        
+        # Frequency Decrease Button
+        self.freq_decrease_btn = QPushButton("▼ Frequency -")
+        self.freq_decrease_btn.setMinimumHeight(38)
+        self.freq_decrease_btn.setCursor(Qt.PointingHandCursor)
+        self.freq_decrease_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                color: rgb(200, 210, 220);
+                border: 1px solid rgb(70, 80, 90);
+                font-size: 13px;
+                font-weight: normal;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+            QPushButton:pressed {
+                background: rgb(0, 150, 200);
+                color: white;
+            }
+        """)
+        self.freq_decrease_btn.clicked.connect(self.decrease_frequency)
+        
+        # Frequency decrease config button
+        freq_dec_config_btn = QPushButton()
+        freq_dec_config_btn.setFixedSize(38, 38)
+        freq_dec_config_btn.setCursor(Qt.PointingHandCursor)
+        freq_dec_config_btn.setIcon(QIcon("imgs/setting.png"))
+        freq_dec_config_btn.setIconSize(QSize(18, 18))
+        freq_dec_config_btn.setStyleSheet("""
+            QPushButton {
+                background: rgb(55, 60, 70);
+                border: 1px solid rgb(70, 80, 90);
+            }
+            QPushButton:hover {
+                background: rgb(65, 72, 82);
+                border: 1px solid rgb(0, 150, 200);
+            }
+        """)
+        freq_dec_config_btn.clicked.connect(lambda: self.configure_frequency_control("Decrease"))
+        
+        # Add all buttons to single row
+        buttons_row.addWidget(self.engine_start_btn)
+        buttons_row.addWidget(start_config_btn)
+        buttons_row.addWidget(self.engine_stop_btn)
+        buttons_row.addWidget(stop_config_btn)
+        buttons_row.addWidget(self.freq_increase_btn)
+        buttons_row.addWidget(freq_inc_config_btn)
+        buttons_row.addWidget(self.freq_decrease_btn)
+        buttons_row.addWidget(freq_dec_config_btn)
+        buttons_row.addStretch()
+        
+        right_layout.addLayout(buttons_row)
+        
+        right_frame.setLayout(right_layout)
+        main_layout.addWidget(right_frame, 7)
+        
+        # Store main layout reference
+        self.main_layout = main_layout
+        self.setLayout(main_layout)
+        
+        # Timer for reading conditions
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_conditions)
+        self.update_timer.start(500)  # Update every 500ms
+    
+    def resizeEvent(self, event):
+        """Handle window resize to maintain responsive layout"""
+        super().resizeEvent(event)
+        width = self.width()
+        height = self.height()
+        
+        # Adjust layout proportions based on screen width
+        if width < 900:
+            # Small screen - more equal split
+            self.main_layout.setStretch(0, 4)  # Left frame
+            self.main_layout.setStretch(1, 6)  # Right frame
+            # Smaller buttons
+            self.engine_start_btn.setMinimumHeight(32)
+            self.engine_stop_btn.setMinimumHeight(32)
+        elif width < 1400:
+            # Medium screen - standard split
+            self.main_layout.setStretch(0, 3)  # Left frame
+            self.main_layout.setStretch(1, 7)  # Right frame
+            self.engine_start_btn.setMinimumHeight(36)
+            self.engine_stop_btn.setMinimumHeight(36)
+        else:
+            # Large screen - wider right panel
+            self.main_layout.setStretch(0, 2)  # Left frame
+            self.main_layout.setStretch(1, 8)  # Right frame
+            self.engine_start_btn.setMinimumHeight(36)
+            self.engine_stop_btn.setMinimumHeight(36)
+    
+    def create_condition_row(self, condition_name):
+        """Create a row widget for a condition"""
+        row_widget = QWidget()
+        row_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid rgba(60, 70, 85, 0.3);
+            }
+            QWidget:hover {
+                background: rgba(50, 60, 75, 0.3);
+            }
+        """)
+        row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(10, 6, 10, 6)
+        row_layout.setSpacing(10)
+        
+        # Status indicator - image based
+        status_label = QLabel()
+        status_label.setObjectName("status_indicator")
+        status_label.setPixmap(QPixmap("imgs/red.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        status_label.setStyleSheet("background: transparent;")
+        status_label.setFixedWidth(28)
+        status_label.setAlignment(Qt.AlignCenter)
+        row_layout.addWidget(status_label)
+        
+        # Condition text
+        text_label = QLabel(condition_name)
+        text_label.setObjectName("condition_text")
+        text_label.setStyleSheet("""
+            QLabel {
+                color: rgb(220, 225, 230);
+                font-size: 13px;
+                font-weight: 400;
+                background: transparent;
+                border: none;
+            }
+        """)
+        row_layout.addWidget(text_label, 1)
+        
+        # Config button with image
+        config_btn = QPushButton()
+        config_btn.setFixedSize(24, 24)
+        config_btn.setCursor(Qt.PointingHandCursor)
+        config_btn.setIcon(QIcon("imgs/setting.png"))
+        config_btn.setIconSize(QSize(16, 16))
+        config_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background: rgba(0, 120, 215, 0.1);
+                border-radius: 3px;
+            }
+        """)
+        config_btn.clicked.connect(lambda: self.configure_condition(condition_name))
+        row_layout.addWidget(config_btn)
+        
+        row_widget.setLayout(row_layout)
+        return row_widget
+    
+    def configure_condition(self, condition_name):
+        """Open configuration dialog for a startup condition"""
+        if not getattr(self.parent_window, 'admin_logged_in', False):
+            QMessageBox.warning(self, "Access Denied", "Please login as admin to configure conditions")
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        conditions = config_data.get("StartupConditions", {})
+        condition_config = conditions.get(condition_name, {})
+        
+        dialog = StartupConditionConfigDialog(self, condition_name, condition_config)
+        if dialog.exec_() == QDialog.Accepted:
+            self.update_conditions()
+    
+    def configure_engine_control(self, control_type):
+        """Open configuration dialog for engine control"""
+        if not getattr(self.parent_window, 'admin_logged_in', False):
+            QMessageBox.warning(self, "Access Denied", "Please login as admin to configure engine control")
+            return
+        
+        dialog = EngineControlConfigDialog(self, control_type)
+        dialog.exec_()
+    
+    def update_conditions(self):
+        """Read and update all startup conditions"""
+        if not self.modbus_client:
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        conditions_config = config_data.get("StartupConditions", {})
+        
+        all_conditions_met = True
+        
+        for condition_name in self.startup_conditions:
+            condition_config = conditions_config.get(condition_name, {})
+            
+            if not condition_config:
+                # No configuration, mark as not met
+                self.condition_states[condition_name] = False
+                self.update_condition_display(condition_name, False)
+                all_conditions_met = False
+                continue
+            
+            try:
+                # Read the value from Modbus
+                device_id = condition_config.get("device_id", 1)
+                address = condition_config.get("address", 0)
+                reg_type = condition_config.get("register_type", "Input Register")
+                comparison = condition_config.get("comparison", ">")
+                threshold = condition_config.get("value", 0)
+                
+                # Read based on register type
+                value = self.read_modbus_value(device_id, address, reg_type)
+                
+                if value is None:
+                    self.condition_states[condition_name] = False
+                    all_conditions_met = False
+                else:
+                    # Evaluate condition
+                    is_met = self.evaluate_condition(value, comparison, threshold)
+                    self.condition_states[condition_name] = is_met
+                    if not is_met:
+                        all_conditions_met = False
+                
+                self.update_condition_display(condition_name, self.condition_states[condition_name])
+                
+            except Exception as e:
+                print(f"Error reading condition {condition_name}: {e}")
+                self.condition_states[condition_name] = False
+                self.update_condition_display(condition_name, False)
+                all_conditions_met = False
+        
+        # Update button states
+        self.engine_start_btn.setEnabled(all_conditions_met and not self.engine_running)
+        self.engine_stop_btn.setEnabled(self.engine_running)
+    
+    def read_modbus_value(self, device_id, address, reg_type):
+        """Read value from Modbus"""
+        try:
+            if reg_type == "Coil":
+                response = self.modbus_client.read_coils(address, 1, slave=device_id)
+                return int(response.bits[0]) if response and not response.isError() else None
+            elif reg_type == "Discrete Input":
+                response = self.modbus_client.read_discrete_inputs(address, 1, slave=device_id)
+                return int(response.bits[0]) if response and not response.isError() else None
+            elif reg_type == "Input Register":
+                response = self.modbus_client.read_input_registers(address, 1, slave=device_id)
+                return float(response.registers[0]) / 10.0 if response and not response.isError() else None
+            elif reg_type == "Holding Register":
+                response = self.modbus_client.read_holding_registers(address, 1, slave=device_id)
+                return float(response.registers[0]) / 10.0 if response and not response.isError() else None
+        except Exception as e:
+            print(f"Error reading Modbus: {e}")
+            return None
+    
+    def evaluate_condition(self, value, comparison, threshold):
+        """Evaluate if condition is met"""
+        try:
+            if comparison == ">":
+                return value > threshold
+            elif comparison == ">=":
+                return value >= threshold
+            elif comparison == "<":
+                return value < threshold
+            elif comparison == "<=":
+                return value <= threshold
+            elif comparison == "==":
+                return abs(value - threshold) < 0.01
+            elif comparison == "!=":
+                return abs(value - threshold) >= 0.01
+        except:
+            return False
+        return False
+    
+    def update_condition_display(self, condition_name, is_met):
+        """Update the visual display of a condition"""
+        if condition_name not in self.condition_widgets:
+            return
+        
+        row_widget = self.condition_widgets[condition_name]
+        status_indicator = row_widget.findChild(QLabel, "status_indicator")
+        
+        if status_indicator:
+            if is_met:
+                # Green image - condition met
+                status_indicator.setPixmap(QPixmap("imgs/green.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                # Red image - condition not met
+                status_indicator.setPixmap(QPixmap("imgs/red.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+    
+    def start_engine(self):
+        """Start the engine by writing to configured coil"""
+        if not self.modbus_client:
+            QMessageBox.warning(self, "Error", "Modbus not connected")
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        engine_control = config_data.get("EngineControl", {})
+        start_config = engine_control.get("Start", {})
+        
+        if not start_config:
+            QMessageBox.warning(self, "Error", "Engine Start not configured")
+            return
+        
+        try:
+            device_id = start_config.get("device_id", 1)
+            coil_address = start_config.get("coil_address", 0)
+            
+            # Write coil ON
+            response = self.modbus_client.write_coil(coil_address, True, slave=device_id)
+            
+            if response and not response.isError():
+                self.engine_running = True
+                QMessageBox.information(self, "Success", "Engine start command sent")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to send engine start command")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Engine start failed: {e}")
+    
+    def stop_engine(self):
+        """Stop the engine by writing to configured coil"""
+        if not self.modbus_client:
+            QMessageBox.warning(self, "Error", "Modbus not connected")
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        engine_control = config_data.get("EngineControl", {})
+        stop_config = engine_control.get("Stop", {})
+        
+        if not stop_config:
+            QMessageBox.warning(self, "Error", "Engine Stop not configured")
+            return
+        
+        try:
+            device_id = stop_config.get("device_id", 1)
+            coil_address = stop_config.get("coil_address", 0)
+            
+            # Write coil ON
+            response = self.modbus_client.write_coil(coil_address, True, slave=device_id)
+            
+            if response and not response.isError():
+                self.engine_running = False
+                QMessageBox.information(self, "Success", "Engine stop command sent")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to send engine stop command")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Engine stop failed: {e}")
+    
+    def increase_frequency(self):
+        """Increase frequency by sending a momentary pulse"""
+        if not self.modbus_client:
+            QMessageBox.warning(self, "Error", "Modbus not connected")
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        freq_control = config_data.get("FrequencyControl", {})
+        increase_config = freq_control.get("Increase", {})
+        
+        if not increase_config:
+            QMessageBox.warning(self, "Error", "Frequency Increase not configured")
+            return
+        
+        try:
+            device_id = increase_config.get("device_id", 1)
+            coil_address = increase_config.get("coil_address", 0)
+            pulse_duration = increase_config.get("pulse_duration", 200)  # Default 200ms
+            
+            # Write coil ON
+            response = self.modbus_client.write_coil(coil_address, True, slave=device_id)
+            
+            if response and not response.isError():
+                # Schedule coil OFF after pulse duration
+                QTimer.singleShot(pulse_duration, lambda: self._turn_off_coil(device_id, coil_address))
+                print(f"Frequency increase pulse sent ({pulse_duration}ms)")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to send frequency increase pulse")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Frequency increase failed: {e}")
+    
+    def decrease_frequency(self):
+        """Decrease frequency by sending a momentary pulse"""
+        if not self.modbus_client:
+            QMessageBox.warning(self, "Error", "Modbus not connected")
+            return
+        
+        config_data = load_encrypted_config("modbus_config.dat") or {}
+        freq_control = config_data.get("FrequencyControl", {})
+        decrease_config = freq_control.get("Decrease", {})
+        
+        if not decrease_config:
+            QMessageBox.warning(self, "Error", "Frequency Decrease not configured")
+            return
+        
+        try:
+            device_id = decrease_config.get("device_id", 1)
+            coil_address = decrease_config.get("coil_address", 0)
+            pulse_duration = decrease_config.get("pulse_duration", 200)  # Default 200ms
+            
+            # Write coil ON
+            response = self.modbus_client.write_coil(coil_address, True, slave=device_id)
+            
+            if response and not response.isError():
+                # Schedule coil OFF after pulse duration
+                QTimer.singleShot(pulse_duration, lambda: self._turn_off_coil(device_id, coil_address))
+                print(f"Frequency decrease pulse sent ({pulse_duration}ms)")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to send frequency decrease pulse")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Frequency decrease failed: {e}")
+    
+    def _turn_off_coil(self, device_id, coil_address):
+        """Turn off a coil (used for pulse completion)"""
+        try:
+            if self.modbus_client:
+                self.modbus_client.write_coil(coil_address, False, slave=device_id)
+                print(f"Pulse completed - coil {coil_address} turned OFF")
+        except Exception as e:
+            print(f"Error turning off coil: {e}")
+    
+    def configure_frequency_control(self, control_type):
+        """Open configuration dialog for frequency control"""
+        if not getattr(self.parent_window, 'admin_logged_in', False):
+            QMessageBox.warning(self, "Access Denied", "Please login as admin to configure frequency control")
+            return
+        
+        dialog = FrequencyControlConfigDialog(self, control_type)
+        dialog.exec_()
+
+
 # ---------------- Main HMI Window ----------------
 class HMIWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Industrial HMI - Cylinder Head Temperatures")
         self.setGeometry(100, 100, 1320, 700)
-        self.setStyleSheet(MAIN_WINDOW_STYLE)
+        self.setMinimumHeight(600)  # Ensure minimum height to show nav bar
+        self.setStyleSheet("""QWidget { 
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 rgb(20, 25, 35), stop:1 rgb(15, 18, 25)); 
+            color: rgb(200, 220, 240); 
+        }""")
 
         # --- Layout ---
         self.main_layout = QVBoxLayout()
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(8)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
-        # Top control bar
-        self.control_bar = QHBoxLayout()
-        self.control_bar.setSpacing(8)
+        # Create control widgets FIRST (before any layout)
         self.port_label = QLabel("COM PORT")
-        self.port_label.setStyleSheet(PORT_LABEL_STYLE)
+        self.port_label.setStyleSheet("""
+            QLabel {
+                color: rgb(156, 163, 175);
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 0.05em;
+                padding: 0px 12px 0px 0px;
+                background: transparent;
+                text-transform: uppercase;
+            }
+        """)
 
         self.port_box = QComboBox()
-        self.port_box.setMinimumWidth(150)
-        self.port_box.setMinimumHeight(32)
-        self.port_box.setStyleSheet(COMBOBOX_STYLE)
+        self.port_box.setMinimumWidth(140)
+        self.port_box.setMinimumHeight(36)
+        self.port_box.setMaximumHeight(36)
+        self.port_box.setStyleSheet("""
+            QComboBox {
+                background: rgba(31, 41, 55, 0.6);
+                color: rgb(209, 213, 219);
+                border: 1px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+                outline: none;
+            }
+            QComboBox:hover {
+                border: 1px solid rgba(59, 130, 246, 0.6);
+                background: rgba(31, 41, 55, 0.8);
+                color: rgb(229, 231, 235);
+            }
+            QComboBox:focus {
+                border: 1px solid rgba(59, 130, 246, 0.8);
+                background: rgba(31, 41, 55, 0.9);
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 28px;
+                background: transparent;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid rgba(156, 163, 175, 0.8);
+                margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgba(17, 24, 39, 0.98);
+                color: rgb(209, 213, 219);
+                selection-background-color: rgba(59, 130, 246, 0.15);
+                selection-color: rgb(243, 244, 246);
+                padding: 4px;
+                border: 1px solid rgba(75, 85, 99, 0.4);
+                border-radius: 0px;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 36px;
+                padding: 10px 16px;
+                border: none;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background: rgba(59, 130, 246, 0.1);
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background: rgba(59, 130, 246, 0.15);
+                border-left: 2px solid rgba(59, 130, 246, 0.8);
+            }
+        """)
         self.refresh_ports()
 
         self.connect_btn = QPushButton("CONNECT")
-        self.connect_btn.setMinimumWidth(120)
-        self.connect_btn.setMinimumHeight(32)
+        self.connect_btn.setMinimumWidth(110)
+        self.connect_btn.setMinimumHeight(36)
+        self.connect_btn.setMaximumHeight(36)
         self.connect_btn.setCursor(Qt.PointingHandCursor)
-        self.connect_btn.setStyleSheet(CONNECT_BUTTON_STYLE)
+        self.connect_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(16, 185, 129, 0.1);
+                color: rgb(167, 243, 208);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                border-radius: 0px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.025em;
+                padding: 8px 20px;
+                text-transform: uppercase;
+                outline: none;
+            }
+            QPushButton:hover {
+                background: rgba(16, 185, 129, 0.15);
+                border: 1px solid rgba(16, 185, 129, 0.5);
+                color: rgb(209, 250, 229);
+            }
+            QPushButton:pressed {
+                background: rgba(16, 185, 129, 0.25);
+                border: 1px solid rgba(16, 185, 129, 0.6);
+            }
+            QPushButton:disabled {
+                background: rgba(55, 65, 81, 0.3);
+                color: rgba(156, 163, 175, 0.5);
+                border: 1px solid rgba(75, 85, 99, 0.3);
+            }
+        """)
         self.connect_btn.clicked.connect(self.connect_modbus)
 
-        self.status_label = QLabel("● DISCONNECTED")
-        self.status_label.setStyleSheet(STATUS_DISCONNECTED_STYLE)
-
-        # Test Mode Button
+        self.status_label = QLabel("DISCONNECTED")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: rgb(248, 113, 113);
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.025em;
+                padding: 8px 16px;
+                background: rgba(239, 68, 68, 0.1);
+                border: 1px solid rgba(239, 68, 68, 0.2);
+                border-radius: 0px;
+                text-transform: uppercase;
+            }
+        """)
+        
+        # Test Mode Button - Elite Professional Design
         self.test_mode_btn = QPushButton("TEST MODE")
         self.test_mode_btn.setMinimumWidth(110)
-        self.test_mode_btn.setMinimumHeight(32)
+        self.test_mode_btn.setMinimumHeight(36)
+        self.test_mode_btn.setMaximumHeight(36)
         self.test_mode_btn.setCursor(Qt.PointingHandCursor)
         self.test_mode_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(255, 180, 0), stop:1 rgb(220, 140, 0));
-                color: rgb(20, 25, 35);
-                border: 1px solid rgb(255, 200, 50);
-                border-radius: 6px;
-                font-size: 11px;
+                background: rgba(245, 158, 11, 0.1);
+                color: rgb(251, 191, 36);
+                border: 1px solid rgba(245, 158, 11, 0.25);
+                border-radius: 0px;
+                font-size: 13px;
                 font-weight: 600;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.025em;
+                padding: 8px 20px;
+                text-transform: uppercase;
+                outline: none;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(255, 200, 50), stop:1 rgb(240, 160, 20));
+                background: rgba(245, 158, 11, 0.15);
+                border: 1px solid rgba(245, 158, 11, 0.35);
+                color: rgb(252, 211, 77);
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(220, 140, 0), stop:1 rgb(180, 100, 0));
+                background: rgba(245, 158, 11, 0.25);
+                border: 1px solid rgba(245, 158, 11, 0.4);
+            }
+            QPushButton:checked {
+                background: rgba(59, 130, 246, 0.15);
+                color: rgb(147, 197, 253);
+                border: 1px solid rgba(59, 130, 246, 0.35);
             }
         """)
         self.test_mode_btn.clicked.connect(self.toggle_test_mode)
         
-        # Admin Login Button
+        # Admin Login Button - Elite Professional Design
         self.admin_logged_in = False
-        self.admin_btn = QPushButton("🔐 ADMIN LOGIN")
-        self.admin_btn.setMinimumWidth(130)
-        self.admin_btn.setMinimumHeight(32)
+        self.admin_btn = QPushButton("ADMIN")
+        self.admin_btn.setMinimumWidth(90)
+        self.admin_btn.setMinimumHeight(36)
+        self.admin_btn.setMaximumHeight(36)
         self.admin_btn.setCursor(Qt.PointingHandCursor)
         self.admin_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(60, 80, 120), stop:1 rgb(40, 60, 100));
-                color: rgb(200, 220, 240);
-                border: 1px solid rgb(80, 100, 140);
-                border-radius: 6px;
-                font-size: 11px;
+                background: rgba(139, 92, 246, 0.08);
+                color: rgb(196, 181, 253);
+                border: 1px solid rgba(139, 92, 246, 0.2);
+                border-radius: 0px;
+                font-size: 13px;
                 font-weight: 600;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.025em;
+                padding: 8px 20px;
+                text-transform: uppercase;
+                outline: none;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(80, 100, 140), stop:1 rgb(60, 80, 120));
+                background: rgba(139, 92, 246, 0.12);
+                border: 1px solid rgba(139, 92, 246, 0.3);
+                color: rgb(221, 214, 254);
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(40, 60, 100), stop:1 rgb(20, 40, 80));
+                background: rgba(139, 92, 246, 0.2);
+                border: 1px solid rgba(139, 92, 246, 0.35);
+            }
+            QPushButton:checked {
+                background: rgba(239, 68, 68, 0.12);
+                color: rgb(252, 165, 165);
+                border: 1px solid rgba(239, 68, 68, 0.3);
             }
         """)
         self.admin_btn.clicked.connect(self.toggle_admin_login)
         
-        # Developer Mode Button
+        # Developer Mode Button - Elite Professional Design
         self.developer_mode_active = False
-        self.dev_mode_btn = QPushButton("🔧 DEV MODE")
-        self.dev_mode_btn.setMinimumWidth(120)
-        self.dev_mode_btn.setMinimumHeight(32)
+        self.dev_mode_btn = QPushButton("DEV MODE")
+        self.dev_mode_btn.setMinimumWidth(110)
+        self.dev_mode_btn.setMinimumHeight(36)
+        self.dev_mode_btn.setMaximumHeight(36)
         self.dev_mode_btn.setCursor(Qt.PointingHandCursor)
         self.dev_mode_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(60, 40, 80), stop:1 rgb(50, 30, 70));
-                color: rgb(200, 150, 255);
-                border: 1px solid rgb(80, 60, 100);
-                border-radius: 6px;
-                font-size: 11px;
+                background: rgba(168, 85, 247, 0.08);
+                color: rgb(216, 180, 254);
+                border: 1px solid rgba(168, 85, 247, 0.2);
+                border-radius: 0px;
+                font-size: 13px;
                 font-weight: 600;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.025em;
+                padding: 8px 20px;
+                text-transform: uppercase;
+                outline: none;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(80, 60, 100), stop:1 rgb(70, 50, 90));
+                background: rgba(168, 85, 247, 0.12);
+                border: 1px solid rgba(168, 85, 247, 0.3);
+                color: rgb(233, 213, 255);
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(50, 30, 70), stop:1 rgb(40, 20, 60));
+                background: rgba(168, 85, 247, 0.2);
+                border: 1px solid rgba(168, 85, 247, 0.35);
+            }
+            QPushButton:checked {
+                background: rgba(20, 184, 166, 0.12);
+                color: rgb(153, 246, 228);
+                border: 1px solid rgba(20, 184, 166, 0.3);
             }
         """)
         self.dev_mode_btn.clicked.connect(self.toggle_developer_mode)
 
-        # Configuration Button
-        self.config_btn = QPushButton("⚙️ CONFIG")
-        self.config_btn.setMinimumWidth(110)
-        self.config_btn.setMinimumHeight(32)
+        # Configuration Button - FUTURISTIC PREMIUM STYLE
+        self.config_btn = QPushButton("⚙ CONFIG")
+        self.config_btn.setMinimumWidth(120)
+        self.config_btn.setMinimumHeight(40)
+        self.config_btn.setMaximumHeight(40)
         self.config_btn.setCursor(Qt.PointingHandCursor)
         self.config_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(80, 120, 60), stop:1 rgb(60, 100, 40));
-                color: rgb(220, 240, 200);
-                border: 1px solid rgb(100, 140, 80);
+                    stop:0 rgba(100, 150, 200, 0.6),
+                    stop:1 rgba(70, 120, 170, 0.6));
+                color: rgb(200, 220, 240);
+                border: 2px solid rgba(100, 160, 220, 0.6);
                 border-radius: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                letter-spacing: 0.5px;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.8px;
+                padding: 0px 12px;
+                text-transform: uppercase;
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(100, 140, 80), stop:1 rgb(80, 120, 60));
+                    stop:0 rgba(120, 170, 220, 0.8),
+                    stop:1 rgba(90, 140, 190, 0.8));
+                border: 2px solid rgba(150, 200, 255, 0.8);
+                color: rgb(220, 240, 255);
             }
             QPushButton:pressed {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgb(60, 100, 40), stop:1 rgb(40, 80, 20));
+                    stop:0 rgba(80, 130, 180, 0.75),
+                    stop:1 rgba(60, 100, 150, 0.75));
+                border: 2px solid rgba(100, 160, 220, 0.7);
             }
         """)
         self.config_btn.clicked.connect(self.show_configuration_dialog)
         self.config_btn.setVisible(False)  # Initially hidden, only visible in developer mode
 
-        self.control_bar.addWidget(self.port_label)
-        self.control_bar.addWidget(self.port_box)
-        self.control_bar.addWidget(self.connect_btn)
-        self.control_bar.addWidget(self.status_label)
+        # NOW create the control bar and only add company name
+        control_bar_container = QWidget()
+        control_bar_container.setStyleSheet("""
+            QWidget {
+                background: rgba(17, 24, 39, 0.7);
+                backdrop-filter: blur(12px);
+                border: none;
+                border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+                padding: 0px;
+                margin: 0px;
+            }
+        """)
+        self.control_bar = QHBoxLayout()
+        self.control_bar.setContentsMargins(24, 12, 24, 12)
+        self.control_bar.setSpacing(20)
+        
+        # Company name label - Top right corner
+        company_label = QLabel("MOHSIN ELECTRONICS")
+        company_label.setStyleSheet("""
+            QLabel {
+                color: rgb(96, 165, 250);
+                font-size: 16px;
+                font-weight: 700;
+                letter-spacing: 0.15em;
+                padding: 8px 0px;
+                background: transparent;
+                text-transform: uppercase;
+            }
+        """)
+        
+        # Add only company name to control bar
         self.control_bar.addStretch()
-        self.control_bar.addWidget(self.test_mode_btn)
-        self.control_bar.addWidget(self.config_btn)
-        self.control_bar.addWidget(self.dev_mode_btn)
-        self.control_bar.addWidget(self.admin_btn)
+        self.control_bar.addWidget(company_label)
+        
+        control_bar_container.setLayout(self.control_bar)
 
         # Content area with stacked widget
         self.content_stack = QStackedWidget()
         self.content_stack.setStyleSheet(CONTENT_STACK_STYLE)
 
         # Create sections
+        self.startup_tab = StartupTab(parent=self)
+        self.content_stack.addWidget(self.startup_tab)
+        
         self.cylinder_tab = CylinderHeadTab(parent=self)
         self.content_stack.addWidget(self.cylinder_tab)
         
@@ -11036,25 +13987,33 @@ class HMIWindow(QWidget):
         self.report_tab = ReportTab(parent=self)
         self.content_stack.addWidget(self.report_tab)
         
-        # Bottom navigation bar
+        # Bottom navigation bar - No frame, direct on window
         self.nav_bar = QHBoxLayout()
-        self.nav_bar.setSpacing(5)
+        self.nav_bar.setContentsMargins(0, 0, 0, 0)
+        self.nav_bar.setSpacing(0)
         
-        # Navigation buttons
+        # Create Settings Tab
+        self.settings_tab = self.create_settings_tab()
+        self.content_stack.addWidget(self.settings_tab)
+        
+        # Navigation buttons - Industrial SCADA tabs
         self.nav_buttons = []
         nav_items = [
-            ("CYLINDER HEAD", 0),
-            ("MAIN BEARING", 1),
-            ("ENGINE PRESSURES", 2),
-            ("ENGINE TEMPERATURES", 3),
-            ("ELECTRICAL PARAMETERS", 4),
-            ("HISTORY", 5),
-            ("REPORT", 6)
+            ("Startup", 0),
+            ("Cylinder Head", 1),
+            ("Main Bearing", 2),
+            ("Pressures", 3),
+            ("Temperatures", 4),
+            ("Electrical", 5),
+            ("History", 6),
+            ("Report", 7),
+            ("Settings", 8)
         ]
         
         for label, index in nav_items:
             btn = QPushButton(label)
-            btn.setMinimumHeight(40)
+            btn.setMinimumHeight(48)
+            btn.setMaximumWidth(150)  # Limit width to ensure all buttons fit
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(lambda checked, idx=index: self.switch_section(idx))
             btn.setProperty("nav_index", index)
@@ -11069,9 +14028,14 @@ class HMIWindow(QWidget):
         self.nav_buttons[0].setProperty("active", True)
         self.update_nav_button_styles()
 
-        self.main_layout.addLayout(self.control_bar)
-        self.main_layout.addWidget(self.content_stack, 1)
-        self.main_layout.addLayout(self.nav_bar)
+        # Create navigation bar container with fixed height
+        nav_bar_container = QWidget()
+        nav_bar_container.setFixedHeight(48)
+        nav_bar_container.setLayout(self.nav_bar)
+        
+        self.main_layout.addWidget(control_bar_container, 0)  # Fixed size (no stretch)
+        self.main_layout.addWidget(self.content_stack, 1)     # Takes remaining space
+        self.main_layout.addWidget(nav_bar_container, 0)      # Fixed size (no stretch)
         self.setLayout(self.main_layout)
 
         # Modbus setup
@@ -11205,15 +14169,16 @@ class HMIWindow(QWidget):
         # Calculate scale factor
         scale_factor = min(width / 1320, height / 700)
         
-        # Update control bar spacing and margins
+        # Update control bar spacing and margins (with safety checks)
         spacing = max(6, int(12 * scale_factor))
-        self.control_bar.setSpacing(spacing)
-        self.nav_bar.setSpacing(max(4, int(8 * scale_factor)))
+        if hasattr(self, 'control_bar'):
+            self.control_bar.setSpacing(spacing)
+        if hasattr(self, 'nav_bar'):
+            self.nav_bar.setSpacing(max(4, int(8 * scale_factor)))
         
-        # Update main layout margins and spacing
-        margin = max(8, int(16 * scale_factor))
-        self.main_layout.setContentsMargins(margin, margin, margin, margin)
-        self.main_layout.setSpacing(max(6, int(12 * scale_factor)))
+        # Keep main layout margins at 0 to ensure nav bar is visible
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
         
         # Update button sizes
         btn_height = max(32, int(38 * scale_factor))
@@ -11233,6 +14198,144 @@ class HMIWindow(QWidget):
         nav_btn_height = max(40, int(50 * scale_factor))
         for btn in self.nav_buttons:
             btn.setFixedHeight(nav_btn_height)
+    
+    # -------- Create Settings Tab --------
+    def create_settings_tab(self):
+        """Create settings tab with connection and admin controls"""
+        settings_widget = QWidget()
+        settings_widget.setStyleSheet("""QWidget { 
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 rgb(20, 25, 35), stop:1 rgb(15, 18, 25)); 
+            color: rgb(200, 220, 240); 
+        }""")
+        
+        main_layout = QVBoxLayout(settings_widget)
+        main_layout.setContentsMargins(40, 40, 40, 40)
+        main_layout.setSpacing(30)
+        
+        # Title
+        title = QLabel("SYSTEM SETTINGS")
+        title.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        title.setStyleSheet("color: rgb(96, 165, 250); letter-spacing: 0.05em;")
+        title.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(title)
+        
+        # Connection Section
+        connection_group = QGroupBox("CONNECTION")
+        connection_group.setStyleSheet("""
+            QGroupBox {
+                background: rgba(31, 41, 55, 0.4);
+                border: 2px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                margin-top: 20px;
+                padding-top: 30px;
+                font-size: 14px;
+                font-weight: 600;
+                color: rgb(156, 163, 175);
+                letter-spacing: 0.05em;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 8px 16px;
+                color: rgb(147, 197, 253);
+            }
+        """)
+        conn_layout = QVBoxLayout()
+        conn_layout.setSpacing(20)
+        
+        # COM Port
+        port_container = QHBoxLayout()
+        port_container.addWidget(self.port_label)
+        port_container.addWidget(self.port_box)
+        port_container.addStretch()
+        conn_layout.addLayout(port_container)
+        
+        # Connect button and status
+        conn_controls = QHBoxLayout()
+        conn_controls.addWidget(self.connect_btn)
+        conn_controls.addWidget(self.status_label)
+        conn_controls.addStretch()
+        conn_layout.addLayout(conn_controls)
+        
+        connection_group.setLayout(conn_layout)
+        main_layout.addWidget(connection_group)
+        
+        # Mode Controls Section
+        modes_group = QGroupBox("MODES")
+        modes_group.setStyleSheet("""
+            QGroupBox {
+                background: rgba(31, 41, 55, 0.4);
+                border: 2px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                margin-top: 20px;
+                padding-top: 30px;
+                font-size: 14px;
+                font-weight: 600;
+                color: rgb(156, 163, 175);
+                letter-spacing: 0.05em;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 8px 16px;
+                color: rgb(147, 197, 253);
+            }
+        """)
+        modes_layout = QHBoxLayout()
+        modes_layout.setSpacing(20)
+        modes_layout.addWidget(self.test_mode_btn)
+        modes_layout.addWidget(self.dev_mode_btn)
+        modes_layout.addWidget(self.config_btn)
+        modes_layout.addStretch()
+        modes_group.setLayout(modes_layout)
+        main_layout.addWidget(modes_group)
+        
+        # Admin Section
+        admin_group = QGroupBox("ADMINISTRATION")
+        admin_group.setStyleSheet("""
+            QGroupBox {
+                background: rgba(31, 41, 55, 0.4);
+                border: 2px solid rgba(75, 85, 99, 0.5);
+                border-radius: 0px;
+                margin-top: 20px;
+                padding-top: 30px;
+                font-size: 14px;
+                font-weight: 600;
+                color: rgb(156, 163, 175);
+                letter-spacing: 0.05em;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 8px 16px;
+                color: rgb(147, 197, 253);
+            }
+        """)
+        admin_layout = QHBoxLayout()
+        admin_layout.addWidget(self.admin_btn)
+        admin_layout.addStretch()
+        admin_group.setLayout(admin_layout)
+        main_layout.addWidget(admin_group)
+        
+        # Info section
+        info_label = QLabel("⚠ These settings control system connections and access. Please use with caution.")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("""
+            QLabel {
+                color: rgb(251, 191, 36);
+                background: rgba(245, 158, 11, 0.1);
+                border: 1px solid rgba(245, 158, 11, 0.3);
+                border-radius: 0px;
+                padding: 16px;
+                font-size: 13px;
+            }
+        """)
+        main_layout.addWidget(info_label)
+        
+        main_layout.addStretch()
+        
+        return settings_widget
     
     # -------- Load Initial Configuration --------
     def load_initial_configuration(self):
@@ -11318,9 +14421,53 @@ class HMIWindow(QWidget):
         for btn in self.nav_buttons:
             is_active = btn.property("active")
             if is_active:
-                btn.setStyleSheet(NAV_BUTTON_ACTIVE_STYLE)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: rgba(59, 130, 246, 0.12);
+                        color: rgb(224, 231, 255);
+                        border: 1px solid rgba(59, 130, 246, 0.4);
+                        border-bottom: 2px solid rgb(59, 130, 246);
+                        border-radius: 0px;
+                        padding: 14px 16px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 0.01em;
+                        outline: none;
+                        text-transform: uppercase;
+                    }
+                    QPushButton:hover {
+                        background: rgba(59, 130, 246, 0.18);
+                        color: rgb(237, 241, 255);
+                        border: 1px solid rgba(96, 165, 250, 0.5);
+                    }
+                """)
             else:
-                btn.setStyleSheet(NAV_BUTTON_INACTIVE_STYLE)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: transparent;
+                        color: rgb(156, 163, 175);
+                        border: 1px solid rgba(75, 85, 99, 0.4);
+                        border-bottom: 2px solid transparent;
+                        border-radius: 0px;
+                        padding: 14px 16px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        letter-spacing: 0.01em;
+                        outline: none;
+                        text-transform: uppercase;
+                    }
+                    QPushButton:hover {
+                        background: rgba(55, 65, 81, 0.4);
+                        color: rgb(209, 213, 219);
+                        border: 1px solid rgba(96, 165, 250, 0.4);
+                        border-bottom: 2px solid rgba(75, 85, 99, 0.6);
+                    }
+                    QPushButton:pressed {
+                        background: rgba(31, 41, 55, 0.6);
+                        color: rgb(229, 231, 235);
+                        border: 1px solid rgba(96, 165, 250, 0.6);
+                    }
+                """)
 
     # -------- COM Port Detection --------
     def refresh_ports(self):
@@ -11354,7 +14501,22 @@ class HMIWindow(QWidget):
                 self.reconnect_attempts = 0
                 self.update_status("connected")
                 self.timer.start(1000)
-                self.connect_btn.setText("DISCONNECT")
+                self.connect_btn.setText("Disconnect")
+                self.connect_btn.setStyleSheet("""
+                    QPushButton {
+                        background: rgb(200, 50, 50);
+                        color: white;
+                        border: 1px solid rgb(220, 70, 70);
+                        font-size: 13px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background: rgb(220, 70, 70);
+                    }
+                    QPushButton:pressed {
+                        background: rgb(180, 40, 40);
+                    }
+                """)
                 self.connect_btn.clicked.disconnect()
                 self.connect_btn.clicked.connect(self.disconnect_modbus)
                 # Set modbus client for tabs that need coil writing
@@ -11363,6 +14525,7 @@ class HMIWindow(QWidget):
                 self.pressures_tab.set_modbus_client(self.client)
                 self.engine_temps_tab.set_modbus_client(self.client)
                 self.electrical_tab.set_modbus_client(self.client)
+                self.startup_tab.modbus_client = self.client
             else:
                 QMessageBox.critical(self, "Error", "Failed to connect to Modbus device.")
         except Exception as e:
@@ -11379,7 +14542,22 @@ class HMIWindow(QWidget):
             self.reconnect_attempts = 0
             self.update_status("disconnected")
             self.report_tab.update_connection_status(False)
-            self.connect_btn.setText("CONNECT")
+            self.connect_btn.setText("Connect")
+            self.connect_btn.setStyleSheet("""
+                QPushButton {
+                    background: rgb(0, 180, 80);
+                    color: white;
+                    border: 1px solid rgb(0, 200, 100);
+                    font-size: 13px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background: rgb(0, 200, 100);
+                }
+                QPushButton:pressed {
+                    background: rgb(0, 160, 70);
+                }
+            """)
             self.connect_btn.clicked.disconnect()
             self.connect_btn.clicked.connect(self.connect_modbus)
             # Clear all data and disconnect modbus clients
@@ -11393,6 +14571,7 @@ class HMIWindow(QWidget):
             self.engine_temps_tab.update_temperatures([0] * 16)
             self.electrical_tab.set_modbus_client(None)
             self.electrical_tab.clear_displays()
+            self.startup_tab.modbus_client = None
             # Clear report tab data
             self.report_tab.update_cylinder_head_data([0] * 18)
             self.report_tab.update_main_bearing_data([0] * 10)
@@ -11403,17 +14582,53 @@ class HMIWindow(QWidget):
     # -------- Update Status Display --------
     def update_status(self, status):
         if status == "connected":
-            self.status_label.setText("● CONNECTED")
-            self.status_label.setStyleSheet(STATUS_CONNECTED_STYLE)
+            self.status_label.setText("Connected")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgb(100, 255, 150);
+                    font-size: 13px;
+                    font-weight: bold;
+                    padding: 7px 14px;
+                    background: rgba(0, 180, 80, 0.15);
+                    border: 1px solid rgb(0, 180, 80);
+                }
+            """)
         elif status == "reconnecting":
-            self.status_label.setText(f"● RECONNECTING ({self.reconnect_attempts}/{self.max_reconnect_attempts})")
-            self.status_label.setStyleSheet(STATUS_RECONNECTING_STYLE)
+            self.status_label.setText(f"Reconnecting {self.reconnect_attempts}/{self.max_reconnect_attempts}")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgb(255, 200, 100);
+                    font-size: 13px;
+                    font-weight: bold;
+                    padding: 7px 14px;
+                    background: rgba(255, 170, 0, 0.15);
+                    border: 1px solid rgb(255, 170, 0);
+                }
+            """)
         elif status == "error":
-            self.status_label.setText(f"● NO RESPONSE ({self.failed_attempts}/{self.max_failed_attempts})")
-            self.status_label.setStyleSheet(STATUS_ERROR_STYLE)
+            self.status_label.setText(f"No Response {self.failed_attempts}/{self.max_failed_attempts}")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgb(255, 100, 100);
+                    font-size: 13px;
+                    font-weight: bold;
+                    padding: 7px 14px;
+                    background: rgba(200, 50, 50, 0.15);
+                    border: 1px solid rgb(200, 50, 50);
+                }
+            """)
         else:  # disconnected
-            self.status_label.setText("● DISCONNECTED")
-            self.status_label.setStyleSheet(STATUS_DISCONNECTED_STYLE)
+            self.status_label.setText("Disconnected")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgb(255, 100, 100);
+                    font-size: 13px;
+                    font-weight: bold;
+                    padding: 7px 14px;
+                    background: rgba(200, 50, 50, 0.15);
+                    border: 1px solid rgb(200, 50, 50);
+                }
+            """)
     
     # -------- Attempt Reconnection --------
     def attempt_reconnection(self):
