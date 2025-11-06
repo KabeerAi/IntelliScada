@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mohsin electronics Logo</title>
+    <!-- Importing the required Ubuntu font -->
+    <link href="https://fonts.googleapis.com/css?family=Ubuntu:400,700italic" rel="stylesheet">
+    <style>
+        /* CSS Variables based on SCSS definitions */
+        :root {
+            --stark-light-blue: #00fffc; /* $stark-light-blue */
+            --stark-med-blue: #00a4a2;   /* $stark-med-blue */
+        }
+
+        /* Basic setup for the page (copied from the original SCSS context) */
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            background: #000;
+            background-size: cover;
+            font-size: 10px;
+            height: 100%;
+            overflow: hidden;
+            position: absolute;
+            text-align: center;
+            width: 100%;
+        }
+        
+        body {
+            /* Center the logo vertically */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        /* =========================================
+        Stark Industries Logo Container
+        ========================================= */
+
+        #logo {
+            animation: logo-entry 4s ease-in;
+            width: 500px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 40;
+            /* Added padding-top to keep it visually centered as the H1 is positioned absolutely within it */
+            padding-top: 50px; 
+        }
+
+        /* =========================================
+        H1 Text Styles
+        ========================================= */
+
+        h1 {
+            animation: text-glow 2s ease-out infinite alternate;
+            font-family: 'Ubuntu', sans-serif;
+            color: var(--stark-med-blue);
+            font-size: 4.8rem; /* 48px */
+            font-weight: bold;
+            position: absolute; /* positioned relative to #logo */
+            top: 50px;
+            left: 50%; /* Adjusted for centering inside #logo */
+            transform: translateX(-50%);
+            /* Multi-layered black text shadow for the 'glow' base effect */
+            text-shadow: 0 0 10px #000, 0 0 20px #000, 0 0 30px #000, 0 0 40px #000, 0 0 50px #000, 0 0 60px #000, 0 0 70px #000;
+            white-space: nowrap; /* Prevent line breaks */
+        }
+
+        /* Decorative line/border above the text */
+        h1:before {
+            content: ' ';
+            position: absolute;
+            height: 0;
+            width: 0;
+            /* Border triangle shape */
+            border-left: 535px solid transparent;
+            border-bottom: 10px solid var(--stark-med-blue);
+            
+            right: -74px;
+            top: -10px;
+            
+            animation: before-glow 2s ease-out infinite alternate;
+        }
+
+        /* Decorative line/border below and to the right of the text */
+        h1:after {
+            content: ' ';
+            position: absolute;
+            height: 0;
+            width: 0;
+            /* Border triangle shape */
+            border-left: 100px solid transparent;
+            border-top: 16px solid var(--stark-med-blue);
+            
+            right: -85px;
+            top: 24px;
+            /* Angled line */
+            transform: rotate(-47deg);
+            
+            animation: after-glow 2s ease-out infinite alternate;
+        }
+
+        /* =========================================
+        Animation Keyframes
+        ========================================= */
+
+        @keyframes logo-entry {
+            0% { opacity: 0; }
+            80% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes text-glow {
+            0% {
+                color: var(--stark-med-blue);
+                text-shadow: 0 0 10px #000, 0 0 20px #000, 0 0 30px #000, 0 0 40px #000, 0 0 50px #000, 0 0 60px #000, 0 0 70px #000;
+            }
+            100% {
+                color: var(--stark-light-blue);
+                /* Light glow effect */
+                text-shadow: 0 0 20px rgba(0, 255, 253, 0.6), 0 0 10px rgba(0, 255, 253, 0.4), 0 2px 0 #000;
+            }
+        }
+
+        @keyframes before-glow {
+            0% { border-bottom-color: var(--stark-med-blue); }
+            100% { border-bottom-color: var(--stark-light-blue); }
+        }
+
+        @keyframes after-glow {
+            0% { border-top-color: var(--stark-med-blue); }
+            100% { border-top-color: var(--stark-light-blue); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- STARK INDUSTRIES Logo Structure -->
+    <div id="logo"> 
+      <h1><i> MOHSIN ELECTRONICS</i></h1>
+    </div> 
+
+</body>
+</html>

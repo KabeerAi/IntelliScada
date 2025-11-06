@@ -361,3 +361,12 @@ TOPBAR_REFINEMENT_STYLE = """
         padding: 2px 8px;
     }
 """
+
+# Consistent style for tab headings
+TAB_HEADING_STYLE = """
+    color: rgb(0, 200, 255);
+    background-color: transparent;
+    padding: 5px;
+    font-size: 18px;
+    font-weight: bold;
+"""

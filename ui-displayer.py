@@ -25,6 +25,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pymodbus.client import ModbusSerialClient
 from styles import *
 
+
+
 # ============== FUTURISTIC UI COMPONENTS ==============
 from PyQt5.QtWidgets import QFrame
 from PyQt5.QtGui import QPainterPath
@@ -6459,7 +6461,7 @@ class EnginePressuresTab(QWidget):
         # Title
         self.title = QLabel("ENGINE PRESSURES")
         self.title.setFont(QFont("Inter", 18, QFont.Bold))
-        self.title.setStyleSheet("color: rgb(255, 255, 255);")
+        self.title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         self.title.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(self.title, 1)
         
@@ -6939,7 +6941,7 @@ class EngineTemperaturesTab(QWidget):
         # Title
         self.title = QLabel("SYSTEM CONFIGURATION")
         self.title.setFont(QFont("Inter", 18, QFont.Bold))
-        self.title.setStyleSheet("color: rgb(255, 255, 255);")
+        self.title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         self.title.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.title)
         
@@ -7953,16 +7955,7 @@ class EngineTemperaturesTab(QWidget):
         
         # Title with section indicator
         self.title = QLabel("ENGINE TEMPERATURES - SECTION 1")
-        self.title.setStyleSheet("""
-            QLabel {
-                color: rgb(255, 255, 255);
-                font-size: 18px;
-                font-weight: 700;
-                letter-spacing: 1.5px;
-                padding: 15px;
-                text-align: center;
-            }
-        """)
+        self.title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         self.title.setAlignment(Qt.AlignCenter)
         
         # Navigation buttons
@@ -10756,11 +10749,7 @@ class ElectricalParameterTab(QWidget):
         # Title
         title = QLabel("Electrical Parameters")
         title.setFont(QFont("Segoe UI", 15, QFont.DemiBold))
-        title.setStyleSheet("""
-            color: rgb(229, 231, 235);
-            letter-spacing: 0.01em;
-            background: transparent;
-        """)
+        title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         header_layout.addWidget(title)
         header_layout.addStretch()
         
@@ -11434,7 +11423,7 @@ class HistoryTab(QWidget):
         # Title
         title = QLabel("ALARM HISTORY")
         title.setFont(QFont("Inter", 18, QFont.Bold))
-        title.setStyleSheet("color: rgb(0, 200, 255); padding: 5px;")
+        title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         header_layout.addWidget(title)
         
         header_layout.addStretch()
@@ -11802,7 +11791,7 @@ class ReportTab(QWidget):
         # Title
         title = QLabel("COMPREHENSIVE SYSTEM REPORT")
         title.setFont(QFont("Inter", 18, QFont.Bold))
-        title.setStyleSheet("color: rgb(0, 200, 255); padding: 5px;")
+        title.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         title.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title)
         
@@ -12981,15 +12970,7 @@ class StartupTab(QWidget):
         
         # Title
         title_label = QLabel("STARTING CONDITIONS")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: rgb(180, 190, 200);
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 0px;
-                background: transparent;
-            }
-        """)
+        title_label.setStyleSheet(TAB_HEADING_STYLE)  # Use consistent heading style
         left_layout.addWidget(title_label)
         
         # Scroll area for conditions
@@ -13927,7 +13908,6 @@ class HMIWindow(QWidget):
         control_bar_container.setStyleSheet("""
             QWidget {
                 background: rgba(17, 24, 39, 0.7);
-                backdrop-filter: blur(12px);
                 border: none;
                 border-bottom: 1px solid rgba(75, 85, 99, 0.3);
                 padding: 0px;
@@ -13989,8 +13969,8 @@ class HMIWindow(QWidget):
         
         # Bottom navigation bar - No frame, direct on window
         self.nav_bar = QHBoxLayout()
-        self.nav_bar.setContentsMargins(0, 0, 0, 0)
-        self.nav_bar.setSpacing(0)
+        self.nav_bar.setContentsMargins(10, 5, 10, 5)  # Add padding around buttons
+        self.nav_bar.setSpacing(5) # Add some spacing between buttons
         
         # Create Settings Tab
         self.settings_tab = self.create_settings_tab()
@@ -14030,12 +14010,13 @@ class HMIWindow(QWidget):
 
         # Create navigation bar container with fixed height
         nav_bar_container = QWidget()
-        nav_bar_container.setFixedHeight(48)
+        nav_bar_container.setFixedHeight(58)
         nav_bar_container.setLayout(self.nav_bar)
         
         self.main_layout.addWidget(control_bar_container, 0)  # Fixed size (no stretch)
         self.main_layout.addWidget(self.content_stack, 1)     # Takes remaining space
         self.main_layout.addWidget(nav_bar_container, 0)      # Fixed size (no stretch)
+        self.main_layout.setSpacing(10) # Add spacing between elements
         self.setLayout(self.main_layout)
 
         # Modbus setup
@@ -14216,7 +14197,7 @@ class HMIWindow(QWidget):
         # Title
         title = QLabel("SYSTEM SETTINGS")
         title.setFont(QFont("Segoe UI", 24, QFont.Bold))
-        title.setStyleSheet("color: rgb(96, 165, 250); letter-spacing: 0.05em;")
+        title.setStyleSheet(TAB_HEADING_STYLE)
         title.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title)
         
@@ -14241,22 +14222,17 @@ class HMIWindow(QWidget):
                 color: rgb(147, 197, 253);
             }
         """)
-        conn_layout = QVBoxLayout()
+        conn_layout = QHBoxLayout()
         conn_layout.setSpacing(20)
         
         # COM Port
-        port_container = QHBoxLayout()
-        port_container.addWidget(self.port_label)
-        port_container.addWidget(self.port_box)
-        port_container.addStretch()
-        conn_layout.addLayout(port_container)
+        conn_layout.addWidget(self.port_label)
+        conn_layout.addWidget(self.port_box)
         
         # Connect button and status
-        conn_controls = QHBoxLayout()
-        conn_controls.addWidget(self.connect_btn)
-        conn_controls.addWidget(self.status_label)
-        conn_controls.addStretch()
-        conn_layout.addLayout(conn_controls)
+        conn_layout.addWidget(self.connect_btn)
+        conn_layout.addWidget(self.status_label)
+        conn_layout.addStretch()
         
         connection_group.setLayout(conn_layout)
         main_layout.addWidget(connection_group)
