@@ -2,17 +2,17 @@
 # Stylesheet Configuration for Industrial HMI Application
 # ============================================================
 
-# Main window background - Professional Blue Theme
+# Main window background - Deep Navy Theme (matching sample-ui.py)
 MAIN_WINDOW_STYLE = """
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 rgb(20, 25, 35), stop:1 rgb(15, 18, 25)); 
-    color: rgb(200, 220, 240); 
-    font-family: 'Segoe UI', sans-serif;
+    background-color: #050c17;
+    color: #e0e6ed;
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    font-size: 14px;
 """
 
-# Cylinder head tab background - Professional Blue Theme
-CYLINDER_HEAD_BG_STYLE = """background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgb(25, 30, 40), stop:1 rgb(20, 25, 35));"""
+# Page/Tab background - Deep Navy Theme (matching sample-ui.py)
+# Pages inside QStackedWidget should have no border - the border is on the QStackedWidget itself
+CYLINDER_HEAD_BG_STYLE = """background-color: #0a1525; border: none;"""
 
 # Port label style - Elite Professional Design
 PORT_LABEL_STYLE = """
@@ -22,7 +22,6 @@ PORT_LABEL_STYLE = """
     letter-spacing: 0.05em;
     padding-right: 16px;
     background: transparent;
-    text-transform: uppercase;
 """
 
 # ComboBox (Port selector) style - Elite Professional Design
@@ -98,7 +97,6 @@ CONNECT_BUTTON_STYLE = """
         font-weight: 600;
         letter-spacing: 0.025em;
         outline: none;
-        text-transform: uppercase;
     }
     QPushButton:hover {
         background: rgba(16, 185, 129, 0.15);
@@ -108,7 +106,6 @@ CONNECT_BUTTON_STYLE = """
     QPushButton:pressed {
         background: rgba(16, 185, 129, 0.25);
         border: 1px solid rgba(16, 185, 129, 0.6);
-        transform: translateY(1px);
     }
 """
 
@@ -123,7 +120,6 @@ STATUS_DISCONNECTED_STYLE = """
     border: 1px solid rgba(239, 68, 68, 0.2);
     border-radius: 0px;
     outline: none;
-    text-transform: uppercase;
 """
 
 # Status label - connected - Elite Professional Design
@@ -137,7 +133,6 @@ STATUS_CONNECTED_STYLE = """
     border: 1px solid rgba(34, 197, 94, 0.2);
     border-radius: 0px;
     outline: none;
-    text-transform: uppercase;
 """
 
 # Status label - reconnecting - Elite Professional Design
@@ -151,7 +146,6 @@ STATUS_RECONNECTING_STYLE = """
     border: 1px solid rgba(245, 158, 11, 0.2);
     border-radius: 0px;
     outline: none;
-    text-transform: uppercase;
 """
 
 # Status label - error - Elite Professional Design
@@ -165,15 +159,13 @@ STATUS_ERROR_STYLE = """
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 0px;
     outline: none;
-    text-transform: uppercase;
 """
 
-# Content stack (stacked widget) style - Professional Blue Theme
+# Content stack (stacked widget) style - Deep Navy Theme (matching sample-ui.py)
 CONTENT_STACK_STYLE = """
     QStackedWidget {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 rgb(25, 30, 40), stop:1 rgb(20, 25, 35));
-        border: none;
+        background-color: #0a1525;
+        border: 1px solid #0a1e33;
     }
 """
 
@@ -190,7 +182,6 @@ NAV_BUTTON_ACTIVE_STYLE = """
         font-weight: 600;
         letter-spacing: 0.02em;
         outline: none;
-        text-transform: uppercase;
     }
     QPushButton:hover {
         background: rgba(59, 130, 246, 0.18);
@@ -211,7 +202,6 @@ NAV_BUTTON_INACTIVE_STYLE = """
         font-weight: 500;
         letter-spacing: 0.02em;
         outline: none;
-        text-transform: uppercase;
     }
     QPushButton:hover {
         background: rgba(55, 65, 81, 0.4);
