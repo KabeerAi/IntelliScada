@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QSplashScreen, QCheckBox
 )
 from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient, QConicalGradient, QPixmap, QIcon
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QEvent, QThread, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QEvent, QThread, pyqtSignal, QSize, QObject
 import math
 import random
 import json
@@ -25,7 +25,12 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pymodbus.client import ModbusSerialClient
 from styles import *
 
-
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base_path, relative_path)
 
 # ============== FUTURISTIC UI COMPONENTS ==============
 from PyQt5.QtWidgets import QFrame
@@ -354,6 +359,14 @@ def load_encrypted_config(file_path="modbus_config.dat"):
     return None
 
 
+class AlarmBus(QObject):
+    alarm_triggered = pyqtSignal(dict)
+    alarm_cleared = pyqtSignal(dict)
+
+
+ALARM_BUS = AlarmBus()
+
+
 def add_alarm_to_history(gauge_name, gauge_type, alarm_type, value, limit, unit):
     """Add an alarm event to the history"""
     try:
@@ -387,6 +400,10 @@ def add_alarm_to_history(gauge_name, gauge_type, alarm_type, value, limit, unit)
         # Save updated config
         save_encrypted_config(config)
         print(f"✅ Alarm recorded: {gauge_name} - {alarm_type} ({value}{unit} vs limit {limit}{unit})")
+        try:
+            ALARM_BUS.alarm_triggered.emit(alarm_record)
+        except Exception as _:
+            pass
         
     except Exception as e:
         print(f"Error adding alarm to history: {e}")
@@ -421,6 +438,13 @@ def clear_alarm_from_history(gauge_name, alarm_type):
         # Save updated config
         save_encrypted_config(config)
         print(f"✅ Alarm cleared: {gauge_name} - {alarm_type}")
+        try:
+            ALARM_BUS.alarm_cleared.emit({
+                "gauge_name": gauge_name,
+                "alarm_type": alarm_type
+            })
+        except Exception as _:
+            pass
         
     except Exception as e:
         print(f"Error clearing alarm from history: {e}")
@@ -2790,7 +2814,7 @@ class CylinderHeadTab(QWidget):
         self.settings_btn = QPushButton(self)
         self.settings_btn.setFixedSize(36, 36)
         self.settings_btn.setCursor(Qt.PointingHandCursor)
-        self.settings_btn.setIcon(QIcon("imgs/setting.png"))
+        self.settings_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.settings_btn.setIconSize(QSize(18, 18))
         self.settings_btn.setStyleSheet(MS_SETTINGS_BUTTON_STYLE)
         self.settings_btn.clicked.connect(self.open_settings)
@@ -3395,7 +3419,8 @@ class CylinderHeadTab(QWidget):
             if reg_type == 'input':
                 result = self.modbus_client.read_input_registers(address=address, count=1, device_id=device_id)
             elif reg_type == 'holding':
-                result = self.modbus_client.read_holding_registers(address=address, count=1, device_id=device_id)
+                addr_to_use = address if address < 40001 else self.calc_holding_offset(address)
+                result = self.modbus_client.read_holding_registers(address=addr_to_use, count=1, device_id=device_id)
             else:
                 print(f"Unsupported register type: {reg_type}")
                 return 0
@@ -3732,7 +3757,7 @@ class CylinderHeadTab(QWidget):
             
             # Load and draw the remove image
             try:
-                remove_pixmap = QPixmap("imgs/remove.png")
+                remove_pixmap = QPixmap(resource_path("imgs/remove.png"))
                 if not remove_pixmap.isNull():
                     # Scale the image to fit the button size
                     scaled_pixmap = remove_pixmap.scaled(remove_btn_size, remove_btn_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -4575,7 +4600,7 @@ class MainBearingTab(QWidget):
                 
                 # Load and draw the remove image
                 try:
-                    remove_pixmap = QPixmap("imgs/remove.png")
+                    remove_pixmap = QPixmap(resource_path("imgs/remove.png"))
                     if not remove_pixmap.isNull():
                         # Scale the image to fit the button size
                         scaled_pixmap = remove_pixmap.scaled(remove_btn_size, remove_btn_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -8812,16 +8837,14 @@ class ModbusConfigDialog(QDialog):
             label_input.setPlaceholderText("Parameter label")
             form_layout.addRow("Label:", label_input)
             
-            # Register Type
             type_combo = QComboBox()
             type_combo.addItems(["Input Register", "Holding Register", "Coil", "Discrete Input"])
             type_map = {"input": 0, "holding": 1, "coil": 2, "discrete": 3}
             type_combo.setCurrentIndex(type_map.get(param.get("type", "input"), 0))
             form_layout.addRow("Register Type:", type_combo)
             
-            # Address
             addr_input = QSpinBox()
-            addr_input.setRange(1, 65535)
+            addr_input.setRange(30001, 39999)
             addr_input.setValue(param.get("address", 30001))
             addr_input.setSuffix("  ")
             form_layout.addRow("Modbus Address:", addr_input)
@@ -8839,6 +8862,8 @@ class ModbusConfigDialog(QDialog):
                 'address': addr_input,
                 'device': device_input
             })
+            type_combo.currentIndexChanged.connect(lambda idx, spin=addr_input: self._update_data_source_addr_range(idx, spin))
+            self._update_data_source_addr_range(type_combo.currentIndex(), addr_input)
             
             scroll_layout.addWidget(group)
         
@@ -8892,16 +8917,14 @@ class ModbusConfigDialog(QDialog):
             label_input.setPlaceholderText("Parameter label")
             form_layout.addRow("Label:", label_input)
             
-            # Register Type
             type_combo = QComboBox()
             type_combo.addItems(["Input Register", "Holding Register", "Coil", "Discrete Input"])
             type_map = {"input": 0, "holding": 1, "coil": 2, "discrete": 3}
             type_combo.setCurrentIndex(type_map.get(param.get("type", "input"), 0))
             form_layout.addRow("Register Type:", type_combo)
             
-            # Address
             addr_input = QSpinBox()
-            addr_input.setRange(1, 65535)
+            addr_input.setRange(30001, 39999)
             addr_input.setValue(param.get("address", 30001))
             addr_input.setSuffix("  ")
             form_layout.addRow("Modbus Address:", addr_input)
@@ -8919,6 +8942,8 @@ class ModbusConfigDialog(QDialog):
                 'address': addr_input,
                 'device': device_input
             })
+            type_combo.currentIndexChanged.connect(lambda idx, spin=addr_input: self._update_data_source_addr_range(idx, spin))
+            self._update_data_source_addr_range(type_combo.currentIndex(), addr_input)
             
             scroll_layout.addWidget(group)
         
@@ -9084,7 +9109,7 @@ class ModbusConfigDialog(QDialog):
             
             # Address
             addr_input = QSpinBox()
-            addr_input.setRange(1, 65535)
+            addr_input.setRange(30001, 39999)
             addr_input.setValue(param.get("address", 30001))
             form.addRow("Modbus Address:", addr_input)
             
@@ -9099,6 +9124,8 @@ class ModbusConfigDialog(QDialog):
                 'address': addr_input,
                 'device': device_input
             })
+            type_combo.currentIndexChanged.connect(lambda idx, spin=addr_input: self._update_data_source_addr_range(idx, spin))
+            self._update_data_source_addr_range(type_combo.currentIndex(), addr_input)
             
             scroll_layout.addWidget(group)
         
@@ -9107,6 +9134,24 @@ class ModbusConfigDialog(QDialog):
         tab_layout.addWidget(scroll)
         
         return tab
+
+    def _update_data_source_addr_range(self, idx, spin):
+        if idx == 1:
+            spin.setRange(40001, 465536)
+            if spin.value() < 40001:
+                spin.setValue(40001)
+        elif idx == 0:
+            spin.setRange(30001, 39999)
+            if spin.value() > 39999:
+                spin.setValue(30001)
+        elif idx == 2:
+            spin.setRange(1, 9999)
+            if spin.value() < 1:
+                spin.setValue(1)
+        else:
+            spin.setRange(10001, 19999)
+            if spin.value() < 10001:
+                spin.setValue(10001)
     
     def create_voltage_regulation_tab(self):
         """Create regulation tab for voltage"""
@@ -9410,7 +9455,7 @@ class ModbusConfigDialog(QDialog):
             form.addRow("Register Type:", type_combo)
             
             addr_input = QSpinBox()
-            addr_input.setRange(1, 65535)
+            addr_input.setRange(30001, 39999)
             addr_input.setValue(param.get("address", default_addr + idx))
             form.addRow("Modbus Address:", addr_input)
             
@@ -9420,6 +9465,8 @@ class ModbusConfigDialog(QDialog):
             form.addRow("Device ID:", device_input)
             
             widget_list.append({'type': type_combo, 'address': addr_input, 'device': device_input})
+            type_combo.currentIndexChanged.connect(lambda i, spin=addr_input: self._update_data_source_addr_range(i, spin))
+            self._update_data_source_addr_range(type_combo.currentIndex(), addr_input)
             scroll_layout.addWidget(group)
         
         setattr(self, attr_name, widget_list)
@@ -10245,8 +10292,8 @@ class ElectricalVoltageConfigDialog(QDialog):
     
     def update_address_range(self):
         """Update address range based on register type"""
-        if self.register_type_combo.currentIndex() == 0:  # Holding Register
-            self.start_address_spin.setRange(40001, 49999)
+        if self.register_type_combo.currentIndex() == 0:
+            self.start_address_spin.setRange(40001, 465536)
             if self.start_address_spin.value() < 40001:
                 self.start_address_spin.setValue(40001)
         else:  # Input Register
@@ -10419,8 +10466,8 @@ class ElectricalCurrentConfigDialog(QDialog):
     
     def update_address_range(self):
         """Update address range based on register type"""
-        if self.register_type_combo.currentIndex() == 0:  # Holding Register
-            self.start_address_spin.setRange(40001, 49999)
+        if self.register_type_combo.currentIndex() == 0:
+            self.start_address_spin.setRange(40001, 465536)
             if self.start_address_spin.value() < 40001:
                 self.start_address_spin.setValue(40001)
         else:  # Input Register
@@ -10688,8 +10735,8 @@ class ElectricalPowerConfigDialog(QDialog):
             combo = self.reactive_register_type_combo
             spin = self.reactive_address_spin
         
-        if combo.currentIndex() == 0:  # Holding Register
-            spin.setRange(40001, 49999)
+        if combo.currentIndex() == 0:
+            spin.setRange(40001, 465536)
             if spin.value() < 40001:
                 spin.setValue(40001)
         else:  # Input Register
@@ -11219,7 +11266,18 @@ class ElectricalParameterTab(QWidget):
         for display in self.bus_frequency_displays:
             display.set_value(0)
             display.set_status('disconnected')
-    
+        
+    def calc_holding_offset(self, addr):
+        if addr >= 400001:
+            offset = addr - 400001
+        elif addr >= 40001:
+            offset = addr - 40001
+        else:
+            raise ValueError("invalid holding address")
+        if offset < 0 or offset > 65535:
+            raise ValueError("offset out of range")
+        return offset
+        
     def read_modbus_value(self, param):
         """Read a single Modbus value based on configuration"""
         if not self.modbus_client:
@@ -11238,9 +11296,9 @@ class ElectricalParameterTab(QWidget):
                     device_id=dev_id
                 )
             elif reg_type == "holding":
-                # Holding registers: addresses 40001-49999 → offset = address - 40001
+                offset = self.calc_holding_offset(addr)
                 result = self.modbus_client.read_holding_registers(
-                    address=addr - 40001, 
+                    address=offset, 
                     count=1, 
                     device_id=dev_id
                 )
@@ -11314,6 +11372,16 @@ class ElectricalParameterTab(QWidget):
                 print(f"Error completing pulse at offset {offset}: Failed to write OFF")
         except Exception as e:
             print(f"Error completing pulse at offset {offset}: {e}")
+
+    def _update_data_source_addr_range(self, idx, spin):
+        if idx == 1:
+            spin.setRange(40001, 465536)
+            if spin.value() < 40001:
+                spin.setValue(40001)
+        else:
+            spin.setRange(30001, 39999)
+            if spin.value() > 39999:
+                spin.setValue(30001)
     
     def regulate_voltage(self, voltage_config, current_value, voltage_index):
         """Automatically regulate voltage by pulsing coils based on set value and check alarm limits"""
@@ -12333,8 +12401,8 @@ class ReportTab(QWidget):
                 # Input registers: addresses 30001-39999 → offset = address - 30001
                 result = modbus_client.read_input_registers(addr - 30001, 1, slave=dev_id)
             elif reg_type == "holding":
-                # Holding registers: addresses 40001-49999 → offset = address - 40001
-                result = modbus_client.read_holding_registers(addr - 40001, 1, slave=dev_id)
+                offset = self.calc_holding_offset(addr)
+                result = modbus_client.read_holding_registers(offset, 1, slave=dev_id)
             elif reg_type == "coil":
                 # Coils: addresses 1-9999 → offset = address - 1
                 result = modbus_client.read_coils(addr - 1, 1, slave=dev_id)
@@ -13847,7 +13915,7 @@ class StartupTab(QWidget):
         self.start_config_btn = QPushButton()
         self.start_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.start_config_btn.setCursor(Qt.PointingHandCursor)
-        self.start_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.start_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.start_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.start_config_btn.setStyleSheet("""
             QPushButton {
@@ -13895,7 +13963,7 @@ class StartupTab(QWidget):
         self.stop_config_btn = QPushButton()
         self.stop_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.stop_config_btn.setCursor(Qt.PointingHandCursor)
-        self.stop_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.stop_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.stop_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.stop_config_btn.setStyleSheet("""
             QPushButton {
@@ -13939,7 +14007,7 @@ class StartupTab(QWidget):
         self.freq_inc_config_btn = QPushButton()
         self.freq_inc_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.freq_inc_config_btn.setCursor(Qt.PointingHandCursor)
-        self.freq_inc_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.freq_inc_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.freq_inc_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.freq_inc_config_btn.setStyleSheet("""
             QPushButton {
@@ -13983,7 +14051,7 @@ class StartupTab(QWidget):
         self.freq_dec_config_btn = QPushButton()
         self.freq_dec_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.freq_dec_config_btn.setCursor(Qt.PointingHandCursor)
-        self.freq_dec_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.freq_dec_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.freq_dec_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.freq_dec_config_btn.setStyleSheet("""
             QPushButton {
@@ -14027,7 +14095,7 @@ class StartupTab(QWidget):
         self.volt_inc_config_btn = QPushButton()
         self.volt_inc_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.volt_inc_config_btn.setCursor(Qt.PointingHandCursor)
-        self.volt_inc_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.volt_inc_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.volt_inc_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.volt_inc_config_btn.setStyleSheet("""
             QPushButton {
@@ -14071,7 +14139,7 @@ class StartupTab(QWidget):
         self.volt_dec_config_btn = QPushButton()
         self.volt_dec_config_btn.setFixedSize(55, 55)  # Increased from 38
         self.volt_dec_config_btn.setCursor(Qt.PointingHandCursor)
-        self.volt_dec_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.volt_dec_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.volt_dec_config_btn.setIconSize(QSize(26, 26))  # Increased from 18
         self.volt_dec_config_btn.setStyleSheet("""
             QPushButton {
@@ -14144,7 +14212,7 @@ class StartupTab(QWidget):
         self.cb_config_btn = QPushButton()
         self.cb_config_btn.setFixedSize(55, 55)
         self.cb_config_btn.setCursor(Qt.PointingHandCursor)
-        self.cb_config_btn.setIcon(QIcon("imgs/setting.png"))
+        self.cb_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         self.cb_config_btn.setIconSize(QSize(26, 26))
         self.cb_config_btn.setStyleSheet("""
             QPushButton {
@@ -14335,7 +14403,7 @@ class StartupTab(QWidget):
         breaker_config_btn = QPushButton()
         breaker_config_btn.setFixedSize(24, 24)
         breaker_config_btn.setCursor(Qt.PointingHandCursor)
-        breaker_config_btn.setIcon(QIcon("imgs/setting.png"))
+        breaker_config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         breaker_config_btn.setIconSize(QSize(16, 16))
         breaker_config_btn.setStyleSheet("""
             QPushButton {
@@ -14412,7 +14480,7 @@ class StartupTab(QWidget):
         # Status indicator - image based
         status_label = QLabel()
         status_label.setObjectName("status_indicator")
-        status_label.setPixmap(QPixmap("imgs/red.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        status_label.setPixmap(QPixmap(resource_path("imgs/red.png")).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         status_label.setStyleSheet("background: transparent;")
         status_label.setFixedWidth(28)
         status_label.setAlignment(Qt.AlignCenter)
@@ -14436,7 +14504,7 @@ class StartupTab(QWidget):
         config_btn = QPushButton()
         config_btn.setFixedSize(24, 24)
         config_btn.setCursor(Qt.PointingHandCursor)
-        config_btn.setIcon(QIcon("imgs/setting.png"))
+        config_btn.setIcon(QIcon(resource_path("imgs/setting.png")))
         config_btn.setIconSize(QSize(16, 16))
         config_btn.setStyleSheet("""
             QPushButton {
@@ -14579,10 +14647,10 @@ class StartupTab(QWidget):
         if status_indicator:
             if is_met:
                 # Green image - condition met
-                status_indicator.setPixmap(QPixmap("imgs/green.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                status_indicator.setPixmap(QPixmap(resource_path("imgs/green.png")).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             else:
                 # Red image - condition not met
-                status_indicator.setPixmap(QPixmap("imgs/red.png").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                status_indicator.setPixmap(QPixmap(resource_path("imgs/red.png")).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
     
     def start_engine(self):
         """Start the engine by writing to configured coil"""
@@ -15425,6 +15493,104 @@ class StartupTab(QWidget):
 
 
 # ---------------- Main HMI Window ----------------
+class AlarmBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(40)
+        self.setStyleSheet(
+            """
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(220, 38, 38, 0.85),
+                    stop:1 rgba(185, 28, 28, 0.85));
+                border: none;
+            }
+            """
+        )
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(12, 6, 12, 6)
+        self.layout.setSpacing(8)
+        self.icon = QLabel("🔴")
+        self.icon.setStyleSheet("QLabel { color: rgb(255, 220, 220); font-size: 18px; }")
+        self.label = QLabel("")
+        self.label.setStyleSheet("QLabel { color: white; font-size: 13px; font-weight: 700; }")
+        self.dismiss = QPushButton("✖")
+        self.dismiss.setFixedSize(QSize(28, 28))
+        self.dismiss.setCursor(Qt.PointingHandCursor)
+        self.dismiss.setStyleSheet(
+            """
+            QPushButton { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+            QPushButton:hover { background: rgba(255,255,255,0.25); }
+            QPushButton:pressed { background: rgba(255,255,255,0.35); }
+            """
+        )
+        self.dismiss.clicked.connect(self.hide_bar)
+        self.layout.addWidget(self.icon)
+        self.layout.addWidget(self.label, 1)
+        self.layout.addWidget(self.dismiss)
+        self.queue = []
+        self.timer = QTimer()
+        self.timer.setInterval(50)
+        self.timer.timeout.connect(self.step_marquee)
+        self.base_text = ""
+        self.offset = 0
+        self.visible_timeout = QTimer()
+        self.visible_timeout.setSingleShot(True)
+        self.visible_timeout.timeout.connect(self.hide_if_idle)
+        self.setVisible(False)
+
+    def format_message(self, record):
+        t = record.get("gauge_type", "")
+        n = record.get("gauge_name", "")
+        a = record.get("alarm_type", "")
+        v = record.get("value", 0)
+        l = record.get("limit", 0)
+        u = record.get("unit", "")
+        return f"🚨 {t} - {n}: {a} — value={v}{u}, limit={l}{u}"
+
+    def push_alarm(self, record):
+        self.queue.append(self.format_message(record))
+        if not self.isVisible():
+            self.setVisible(True)
+        if not self.timer.isActive():
+            self.show_next()
+
+    def on_alarm_cleared(self, info):
+        if not self.queue:
+            self.visible_timeout.start(3000)
+
+    def show_next(self):
+        if not self.queue:
+            self.hide_if_idle()
+            return
+        self.base_text = self.queue.pop(0)
+        pad = " " * 20
+        self.scrolling_text = self.base_text + pad
+        self.offset = 0
+        self.label.setText(self.scrolling_text)
+        if not self.timer.isActive():
+            self.timer.start()
+        self.visible_timeout.start(10000)
+
+    def step_marquee(self):
+        if not self.scrolling_text:
+            return
+        self.offset = (self.offset + 1) % len(self.scrolling_text)
+        text = self.scrolling_text[self.offset:] + self.scrolling_text[:self.offset]
+        self.label.setText(text)
+        if self.offset == 0 and self.queue:
+            self.show_next()
+
+    def hide_if_idle(self):
+        if not self.queue:
+            self.hide_bar()
+
+    def hide_bar(self):
+        self.timer.stop()
+        self.visible_timeout.stop()
+        self.queue = []
+        self.setVisible(False)
+
 class HMIWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -15437,6 +15603,12 @@ class HMIWindow(QWidget):
         self.main_layout = QVBoxLayout()
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(10)
+
+        self.alarm_bar = AlarmBar(self)
+        self.alarm_bar.setVisible(False)
+        self.main_layout.insertWidget(0, self.alarm_bar, 0)
+        ALARM_BUS.alarm_triggered.connect(self.alarm_bar.push_alarm)
+        ALARM_BUS.alarm_cleared.connect(self.alarm_bar.on_alarm_cleared)
 
         # Create control widgets FIRST (before any layout)
         self.port_label = QLabel("COM PORT")
@@ -17399,6 +17571,7 @@ Last Modified: {os.path.getmtime('modbus_config.dat') if os.path.exists('modbus_
 # ---------------- Run App ----------------
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(resource_path("icon.png")))
     
     # Check if this is first run (no config file exists)
     config_file_path = "modbus_config.dat"
@@ -17408,11 +17581,12 @@ if __name__ == "__main__":
         # For first run, create window directly without splash to handle password dialog
         print("First run detected - initializing without splash screen...")
         window = HMIWindow()
+        window.setWindowIcon(QIcon(resource_path("icon.png")))
         window.showFullScreen()
     else:
         # Normal run with splash screen
         # Create and show custom splash screen
-        splash_image_path = os.path.join(os.path.dirname(__file__), "SPLASH.png")
+        splash_image_path = resource_path("SPLASH.png")
         splash = CustomSplashScreen(splash_image_path)
         splash.show()
         
@@ -17430,6 +17604,7 @@ if __name__ == "__main__":
             try:
                 # Create main window after loading is complete
                 window = HMIWindow()
+                window.setWindowIcon(QIcon(resource_path("icon.png")))
                 
                 # Close splash screen first
                 splash.close()
